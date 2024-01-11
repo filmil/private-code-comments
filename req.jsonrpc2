@@ -1,0 +1,16 @@
+Content-Type: application/json
+Content-Length: 108
+
+{
+    "jsonrpc": "2.0",
+    "method": "sum",
+    "params": { "b": 34, "c": 56, "a": 12 },
+    "id": 123
+}
+
+
+Content-Length: 61
+
+{"jsonrpc":"2.0","error":{"code":0,"message":"TBD"},"id":123}Content-Length: 61
+
+{"jsonrpc":"2.0","error":{"code":0,"message":"TBD"},"id":123}
