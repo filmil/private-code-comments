@@ -7,15 +7,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
-	"log"
 	"net"
 	"os"
-	"path"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	_ "github.com/glebarez/go-sqlite"
+	"github.com/golang/glog"
 	"go.lsp.dev/jsonrpc2"
+	"go.lsp.dev/protocol"
 )
 
 var (
@@ -70,7 +72,7 @@ const (
 	pragmas = `?_pragma=foreign_keys(1)`
 	// For the time being, use an in-memory database.
 	defaultFilename = `:memory:` + pragmas
-	defaultSocket   = `pcc.sock`
+	defaultSocket   = `:stdstream:`
 )
 
 func CreateSchema(db *sql.DB) error {
@@ -82,9 +84,10 @@ func CreateSchema(db *sql.DB) error {
 }
 
 func main() {
-	// Set up logging
-	log.SetPrefix(fmt.Sprintf("%s: ", path.Base(os.Args[0])))
-	log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds | log.Lmsgprefix)
+	// Set up glogging
+	defer func() {
+		glog.Flush()
+	}()
 
 	var (
 		// The database filename.
@@ -97,14 +100,14 @@ func main() {
 	flag.StringVar(&dbFilename,
 		"db", defaultFilename, "The file name for the private comments")
 	flag.StringVar(&socketFile,
-		"socket-file", path.Join(os.Getenv("XDG_RUNTIME_DIR"), defaultSocket),
+		"socket-file", defaultSocket,
 		"The socket to use for communication")
 	flag.Parse()
 
 	// Allow net.Listen to create the comms socket - remove it if it exists.
 	if err := os.Remove(socketFile); err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			log.Fatalf("could not remove socket: %v", err)
+			glog.Fatalf("could not remove socket: %v", err)
 		}
 		// If the file does not exist, we're done here.
 	}
@@ -116,12 +119,12 @@ func main() {
 		_, err := os.Stat(dbFilename)
 		if err != nil {
 			if !errors.Is(err, fs.ErrNotExist) {
-				log.Fatalf("unknown error: %v: %v", dbFilename, err)
+				glog.Fatalf("unknown error: %v: %v", dbFilename, err)
 			}
 			// No such file, create it and set for schema creation.
 			_, err := os.Create(dbFilename)
 			if err != nil {
-				log.Fatal(err)
+				glog.Fatal(err)
 			}
 
 			// Add the pragma suffixes
@@ -135,19 +138,19 @@ func main() {
 	// connect and schedule cleanup
 	db, err := sql.Open("sqlite", dbFilename)
 	if err != nil {
-		log.Fatalf("could not open database: %v: %v", dbFilename, err)
+		glog.Fatalf("could not open database: %v: %v", dbFilename, err)
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Printf("error closing database: %v: %v", dbFilename, err)
+			glog.Infof("error closing database: %v: %v", dbFilename, err)
 		}
 	}()
 
 	// Create the data schema if it has not been created before.
 	if needsInit {
-		log.Printf("creating a new database: %s", dbFilename)
+		glog.Infof("creating a new database: %s", dbFilename)
 		if err := CreateSchema(db); err != nil {
-			log.Fatalf("could not create: %v: %v", dbFilename, err)
+			glog.Fatalf("could not create: %v: %v", dbFilename, err)
 		}
 	}
 
@@ -157,55 +160,106 @@ func main() {
 	r := db.QueryRow("select sqlite_version()")
 	var dbVer string
 	if err := r.Scan(&dbVer); err != nil {
-		log.Fatalf("could not read db version: %v: %v", dbFilename, err)
+		glog.Fatalf("could not read db version: %v: %v", dbFilename, err)
 	}
-	log.Printf("sqlite3 version: %v: %v", dbFilename, dbVer)
+	glog.Infof("sqlite3 version: %v: %v", dbFilename, dbVer)
 
 	var id jsonrpc2.ID
 
-	log.Printf("JSON-RPC2 id: %v", id)
+	glog.Infof("JSON-RPC2 id: %v", id)
 
 	Serve(socketFile, db)
 }
 
-func Serve(f string, db *sql.DB) error {
-	log.Printf("listening for a connection at: %v", f)
-	l, err := net.Listen("unix", f)
-	if err != nil {
-		return fmt.Errorf("could not listen to socket: %v: %v", f, err)
-	}
-	srv := jsonrpc2.HandlerServer(Handler)
-	defer l.Close()
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			return fmt.Errorf("could not accept a connection: %v", err)
-		}
-
-		// Create a json connection
-		jc := jsonrpc2.NewConn(jsonrpc2.NewStream(c))
-
-		ctx := context.Background()
-
-		if err := srv.ServeStream(ctx, jc); err != nil {
-			log.Printf("error while serving request: %v", err)
-			// Don't exit.
-		}
-	}
-	// Unreachable.
+type Server struct {
 }
 
-func Handler(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
-	log.Printf("request: %v", req)
-	var d struct {
-		A int `json:"a"`
-		B int `json:"b"`
-		C int `json:"c"`
+// GetHandlerFunc returns a stateful function that can be given to jsonrpc2.StreamServer
+// to serve JSON-RPC2 requests.
+func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
+	return func(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+		glog.Infof("JSON-RPC2 Request method: %v", req.Method())
+		defer func() {
+			glog.Flush()
+		}()
+
+		switch req.Method() {
+		case protocol.MethodInitialize:
+			var p protocol.InitializeParams
+			if err := json.Unmarshal(req.Params(), &p); err != nil {
+				reply(ctx, jsonrpc2.NewError(jsonrpc2.ErrInternal.Code, ""), err)
+				return fmt.Errorf("error during initialize: %v", err)
+			}
+			glog.V(1).Infof("Request: %v", spew.Sdump(p))
+			// Needs InitializeResponse.
+			var r protocol.InitializeResult
+			r.ServerInfo = &protocol.ServerInfo{
+				Name:    "pcc",
+				Version: "0.0",
+			}
+			reply(ctx, r, nil)
+			glog.Infof("Response: %v", spew.Sdump(r))
+		default:
+			reply(ctx, jsonrpc2.ErrMethodNotFound, nil)
+		}
+		return nil
 	}
-	if err := json.Unmarshal(req.Params(), &d); err != nil {
-		return fmt.Errorf("could not parse request: %v: %v", req, err)
+}
+
+type StdioConn struct{}
+
+// Close implements io.ReadWriteCloser.
+func (*StdioConn) Close() error {
+	return os.Stdout.Close()
+}
+
+// Read implements io.ReadWriteCloser.
+func (*StdioConn) Read(p []byte) (n int, err error) {
+	return os.Stdin.Read(p)
+}
+
+// Write implements io.ReadWriteCloser.
+func (*StdioConn) Write(p []byte) (n int, err error) {
+	return os.Stdout.Write(p)
+}
+
+var _ io.ReadWriteCloser = (*StdioConn)(nil)
+
+func Serve(f string, db *sql.DB) error {
+	glog.Infof("listening for a connection at: %v", f)
+	s := Server{}
+	srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
+
+	if f == defaultSocket {
+		// Use a ReadWriteCloser from stdio and stout.
+		jc := jsonrpc2.NewConn(jsonrpc2.NewStream(&StdioConn{}))
+		ctx := context.Background()
+		if err := srv.ServeStream(ctx, jc); err != nil {
+			glog.Infof("error while serving request: %v", err)
+			return err
+		}
+	} else {
+		l, err := net.Listen("unix", f)
+		if err != nil {
+			return fmt.Errorf("could not listen to socket: %v: %v", f, err)
+		}
+		defer l.Close()
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return fmt.Errorf("could not accept a connection: %v", err)
+			}
+
+			// Create a json connection
+			jc := jsonrpc2.NewConn(jsonrpc2.NewStream(c))
+
+			ctx := context.Background()
+
+			if err := srv.ServeStream(ctx, jc); err != nil {
+				glog.Infof("error while serving request: %v", err)
+				// Don't exit.
+			}
+		}
 	}
-	reply(ctx, nil, fmt.Errorf("TBD"))
-	log.Printf("request params were: %+v", d)
-	return fmt.Errorf("TBD")
+	return nil
 }
