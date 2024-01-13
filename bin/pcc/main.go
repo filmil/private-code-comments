@@ -17,7 +17,7 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 	"github.com/golang/glog"
 	"go.lsp.dev/jsonrpc2"
-	"go.lsp.dev/protocol"
+	lsp "go.lsp.dev/protocol"
 )
 
 var (
@@ -177,12 +177,12 @@ type Server struct {
 	gotInitialize  bool
 	gotInitialized bool
 	gotShutdown    bool
-	clientInfo     *protocol.ClientInfo
+	clientInfo     *lsp.ClientInfo
 	conn           jsonrpc2.Conn
 
 	// Closed when the initialized message is sent.
 	initialized     chan struct{}
-	diagnosticQueue chan protocol.URI
+	diagnosticQueue chan lsp.URI
 	globalCtx       context.Context
 	db              *sql.DB
 	cancel          context.CancelFunc
@@ -194,7 +194,7 @@ type Server struct {
 func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) *Server {
 	ctx, cancel := context.WithCancel(ctx)
 	s := Server{
-		diagnosticQueue: make(chan protocol.URI, 1),
+		diagnosticQueue: make(chan lsp.URI, 1),
 		initialized:     make(chan struct{}, 1),
 		globalCtx:       ctx,
 		db:              db,
@@ -205,6 +205,43 @@ func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) *Server {
 	go s.DiagnosticsFn()
 
 	return &s
+}
+
+type LineRange struct {
+	// Start is zero based.
+	Start uint32
+	// End is zero based.
+	End uint32
+}
+
+func NewLineRange(r lsp.Range) LineRange {
+	return LineRange{
+		Start: r.Start.Line,
+		End:   r.End.Line,
+	}
+}
+
+// NumLines returns the number of lines spanned by this line range.
+func (l LineRange) NumLines() uint32 {
+	return l.End - l.Start
+}
+
+// MakeDiagnostic creates a single diagnostic line.
+func MakeDiagnostic(lr LineRange, m string) lsp.Diagnostic {
+	ret := lsp.Diagnostic{
+		Range: lsp.Range{
+			Start: lsp.Position{
+				Line: lr.Start,
+			},
+			End: lsp.Position{
+				Line: lr.End,
+			},
+		},
+		Severity: lsp.DiagnosticSeverityHint,
+		Source:   "private comments",
+		Message:  m,
+	}
+	return ret
 }
 
 func (s *Server) Shutdown() {
@@ -228,29 +265,25 @@ func (s *Server) DiagnosticsFn() {
 			break
 		case uri := <-s.diagnosticQueue:
 			glog.V(1).Infof("queue tick.")
-			p := protocol.PublishDiagnosticsParams{
+			p := lsp.PublishDiagnosticsParams{
 				URI: uri,
-				Diagnostics: []protocol.Diagnostic{
-					{
-						Range: protocol.Range{
-							Start: protocol.Position{
-								Line: 0,
-							},
-							End: protocol.Position{
-								Line: 1,
-							},
-						},
-						Severity: protocol.DiagnosticSeverityHint,
-						Source:   "private comments",
-						Message:  fmt.Sprintf("[%v] This is a private comment.\n\nNewline Yadda Yadda.", s.count),
-					},
+				Diagnostics: []lsp.Diagnostic{
+					MakeDiagnostic(LineRange{Start: 0, End: 1},
+						fmt.Sprintf("[%v] This is a private comment.\n\nNewline Yadda Yadda.", s.count)),
 				},
 			}
-			if err := s.conn.Notify(ctx, protocol.MethodTextDocumentPublishDiagnostics, &p); err != nil {
+			if err := s.conn.Notify(ctx, lsp.MethodTextDocumentPublishDiagnostics, &p); err != nil {
 				glog.Errorf("error while publishing diagnostics for: %v", uri)
 			}
 		}
 	}
+}
+
+func (s *Server) moveAnnotations(lr LineRange, delta int, uri lsp.URI) error {
+	// Needs to update the diagnostics here.
+	s.count++
+	s.diagnosticQueue <- uri
+	return nil
 }
 
 // GetHandlerFunc returns a stateful function that can be given to jsonrpc2.StreamServer
@@ -263,39 +296,55 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 		}()
 
 		switch req.Method() {
-		case protocol.MethodTextDocumentDidOpen:
-			var p protocol.DidOpenTextDocumentParams
+		case lsp.MethodTextDocumentDidSave:
+			var p lsp.DidSaveTextDocumentParams
+			if err := json.Unmarshal(req.Params(), &p); err != nil {
+				return fmt.Errorf("error during didSave: %v", err)
+			}
+			s.count++
+			s.diagnosticQueue <- p.TextDocument.URI
+		case lsp.MethodTextDocumentDidOpen:
+			var p lsp.DidOpenTextDocumentParams
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during didOpen: %v", err)
 			}
 			s.count++
 			s.diagnosticQueue <- p.TextDocument.URI
 
-		case protocol.MethodTextDocumentDidChange:
-			var p protocol.DidChangeTextDocumentParams
+		case lsp.MethodTextDocumentDidChange:
+			var p lsp.DidChangeTextDocumentParams
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during didChange: %v", err)
 			}
-			s.count++
-			s.diagnosticQueue <- p.TextDocument.URI
+			for _, c := range p.ContentChanges {
+				lr := NewLineRange(c.Range)
+				if lr.NumLines() == 0 {
+					continue
+				}
+				// Process each content change.
+				nl := strings.Count(c.Text, `\n`)
+				delta := nl - int(lr.NumLines())
+				s.moveAnnotations(lr, delta, p.TextDocument.URI)
 
-		case protocol.MethodInitialized:
+			}
+
+		case lsp.MethodInitialized:
 			if !s.gotInitialize {
 				return fmt.Errorf("got initialized without initialize")
 			}
 			s.gotInitialized = true
 			// Send some diagnostics here.
 			close(s.initialized)
-		case protocol.MethodShutdown:
+		case lsp.MethodShutdown:
 			s.cancel()
 			s.Shutdown()
-		case protocol.MethodExit:
+		case lsp.MethodExit:
 			if !s.gotShutdown {
 				glog.Warningf("exiting without shutdown")
 			}
 			return ExitError // this will terminate the serving program.
-		case protocol.MethodInitialize:
-			var p protocol.InitializeParams
+		case lsp.MethodInitialize:
+			var p lsp.InitializeParams
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				reply(ctx, jsonrpc2.NewError(jsonrpc2.ErrInternal.Code, ""), err)
 				return fmt.Errorf("error during initialize: %v", err)
@@ -304,42 +353,42 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			glog.V(1).Infof("Request: %v", spew.Sdump(p))
 
 			// Result
-			r := protocol.InitializeResult{
-				ServerInfo: &protocol.ServerInfo{
+			r := lsp.InitializeResult{
+				ServerInfo: &lsp.ServerInfo{
 					Name:    "pcc",
 					Version: "0.0",
 				},
 
-				Capabilities: protocol.ServerCapabilities{
+				Capabilities: lsp.ServerCapabilities{
 					//PositionEncoding: "utf-16",
-					TextDocumentSync: &protocol.TextDocumentSyncOptions{
+					TextDocumentSync: &lsp.TextDocumentSyncOptions{
 						OpenClose: true,
-						Change:    protocol.TextDocumentSyncKindIncremental,
-						WillSave:  true,
-						Save: &protocol.SaveOptions{
-							IncludeText: true,
+						Change:    lsp.TextDocumentSyncKindIncremental,
+						//WillSave:  true,
+						Save: &lsp.SaveOptions{
+							//IncludeText: true,
 						},
 					},
-					CodeLensProvider: &protocol.CodeLensOptions{
+					CodeLensProvider: &lsp.CodeLensOptions{
 						// Have code lens, but no resolve provider.
 						ResolveProvider: false,
 					},
-					Workspace: &protocol.ServerCapabilitiesWorkspace{
-						FileOperations: &protocol.ServerCapabilitiesWorkspaceFileOperations{
-							DidCreate: &protocol.FileOperationRegistrationOptions{
-								Filters: []protocol.FileOperationFilter{
+					Workspace: &lsp.ServerCapabilitiesWorkspace{
+						FileOperations: &lsp.ServerCapabilitiesWorkspaceFileOperations{
+							DidCreate: &lsp.FileOperationRegistrationOptions{
+								Filters: []lsp.FileOperationFilter{
 									{
-										Pattern: protocol.FileOperationPattern{
+										Pattern: lsp.FileOperationPattern{
 											Glob: "*",
 										},
 									},
 								},
 							},
-							WillCreate: &protocol.FileOperationRegistrationOptions{},
-							DidRename:  &protocol.FileOperationRegistrationOptions{},
-							WillRename: &protocol.FileOperationRegistrationOptions{},
-							DidDelete:  &protocol.FileOperationRegistrationOptions{},
-							WillDelete: &protocol.FileOperationRegistrationOptions{},
+							//WillCreate: &lsp.FileOperationRegistrationOptions{},
+							DidRename: &lsp.FileOperationRegistrationOptions{},
+							//WillRename: &lsp.FileOperationRegistrationOptions{},
+							DidDelete: &lsp.FileOperationRegistrationOptions{},
+							//WillDelete: &lsp.FileOperationRegistrationOptions{},
 						},
 					},
 				},
@@ -409,6 +458,7 @@ func Serve(f string, db *sql.DB) error {
 
 			s := NewServer(ctx, db, jc)
 			srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
+			// Probably needs to be in a separate goroutine, this.
 			if err := srv.ServeStream(ctx, jc); err != nil {
 				glog.Infof("error while serving request: %v", err)
 				if err == ExitError {
