@@ -1,0 +1,34 @@
+{
+		jsonrpc = "2.0",  
+		method = "textDocument/publishDiagnostics",  
+		params = {
+				diagnostics = { 
+						{        
+								message = "expected declaration, found gq",
+								range = {
+										["end"] = { character = 0, line = 1},
+										start = { character = 0, line = 1 }
+								},
+								severity = 1,
+								source = "syntax"
+						}, 
+						{
+								code = "default",        
+								codeDescription = {          
+										href = "https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/unreachable"
+								},        
+								message = "unreachable code",        
+								range = {          
+										["end"] = {character = 47, line = 230},
+										start = {character = 1, line = 230}
+								},        
+								severity = 2,
+								source = "unreachable",
+								tags = { 1 }      
+						} 
+				},    
+				uri = "file:///home/fmil/code/private-code-comments/bin/pcc/main.go",
+				version = 7
+		}
+}
+

@@ -178,20 +178,28 @@ type Server struct {
 	gotInitialized bool
 	gotShutdown    bool
 	clientInfo     *protocol.ClientInfo
+	conn           jsonrpc2.Conn
 
-	diagnosticQueue chan struct{}
+	// Closed when the initialized message is sent.
+	initialized     chan struct{}
+	diagnosticQueue chan protocol.URI
 	globalCtx       context.Context
 	db              *sql.DB
 	cancel          context.CancelFunc
+
+	// Just a temporary thing.
+	count int
 }
 
-func NewServer(ctx context.Context, db *sql.DB) *Server {
+func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) *Server {
 	ctx, cancel := context.WithCancel(ctx)
 	s := Server{
-		diagnosticQueue: make(chan struct{}),
+		diagnosticQueue: make(chan protocol.URI, 1),
+		initialized:     make(chan struct{}, 1),
 		globalCtx:       ctx,
 		db:              db,
 		cancel:          cancel,
+		conn:            conn,
 	}
 
 	go s.DiagnosticsFn()
@@ -207,16 +215,42 @@ func (s *Server) Shutdown() {
 }
 
 func (s *Server) DiagnosticsFn() {
+	<-s.initialized
 	glog.V(1).Infof("diagnostics up and running")
+	ctx, cancel := context.WithCancel(s.globalCtx)
+	defer cancel()
+	if err := s.conn.Notify(ctx, "$/moops", "oops"); err != nil {
+		glog.Errorf("oops: %v", err)
+	}
 	for {
 		select {
 		case <-s.globalCtx.Done():
 			break
-		case _ = <-s.diagnosticQueue:
+		case uri := <-s.diagnosticQueue:
 			glog.V(1).Infof("queue tick.")
+			p := protocol.PublishDiagnosticsParams{
+				URI: uri,
+				Diagnostics: []protocol.Diagnostic{
+					{
+						Range: protocol.Range{
+							Start: protocol.Position{
+								Line: 0,
+							},
+							End: protocol.Position{
+								Line: 1,
+							},
+						},
+						Severity: protocol.DiagnosticSeverityHint,
+						Source:   "private comments",
+						Message:  fmt.Sprintf("[%v] This is a private comment.\n\nNewline Yadda Yadda.", s.count),
+					},
+				},
+			}
+			if err := s.conn.Notify(ctx, protocol.MethodTextDocumentPublishDiagnostics, &p); err != nil {
+				glog.Errorf("error while publishing diagnostics for: %v", uri)
+			}
 		}
 	}
-	glog.Infof("global context canceled, exiting")
 }
 
 // GetHandlerFunc returns a stateful function that can be given to jsonrpc2.StreamServer
@@ -229,11 +263,29 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 		}()
 
 		switch req.Method() {
+		case protocol.MethodTextDocumentDidOpen:
+			var p protocol.DidOpenTextDocumentParams
+			if err := json.Unmarshal(req.Params(), &p); err != nil {
+				return fmt.Errorf("error during didOpen: %v", err)
+			}
+			s.count++
+			s.diagnosticQueue <- p.TextDocument.URI
+
+		case protocol.MethodTextDocumentDidChange:
+			var p protocol.DidChangeTextDocumentParams
+			if err := json.Unmarshal(req.Params(), &p); err != nil {
+				return fmt.Errorf("error during didChange: %v", err)
+			}
+			s.count++
+			s.diagnosticQueue <- p.TextDocument.URI
+
 		case protocol.MethodInitialized:
 			if !s.gotInitialize {
 				return fmt.Errorf("got initialized without initialize")
 			}
 			s.gotInitialized = true
+			// Send some diagnostics here.
+			close(s.initialized)
 		case protocol.MethodShutdown:
 			s.cancel()
 			s.Shutdown()
@@ -261,10 +313,9 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 				Capabilities: protocol.ServerCapabilities{
 					//PositionEncoding: "utf-16",
 					TextDocumentSync: &protocol.TextDocumentSyncOptions{
-						OpenClose:         true,
-						Change:            protocol.TextDocumentSyncKindIncremental,
-						WillSave:          true,
-						WillSaveWaitUntil: true,
+						OpenClose: true,
+						Change:    protocol.TextDocumentSyncKindIncremental,
+						WillSave:  true,
 						Save: &protocol.SaveOptions{
 							IncludeText: true,
 						},
@@ -272,6 +323,24 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 					CodeLensProvider: &protocol.CodeLensOptions{
 						// Have code lens, but no resolve provider.
 						ResolveProvider: false,
+					},
+					Workspace: &protocol.ServerCapabilitiesWorkspace{
+						FileOperations: &protocol.ServerCapabilitiesWorkspaceFileOperations{
+							DidCreate: &protocol.FileOperationRegistrationOptions{
+								Filters: []protocol.FileOperationFilter{
+									{
+										Pattern: protocol.FileOperationPattern{
+											Glob: "*",
+										},
+									},
+								},
+							},
+							WillCreate: &protocol.FileOperationRegistrationOptions{},
+							DidRename:  &protocol.FileOperationRegistrationOptions{},
+							WillRename: &protocol.FileOperationRegistrationOptions{},
+							DidDelete:  &protocol.FileOperationRegistrationOptions{},
+							WillDelete: &protocol.FileOperationRegistrationOptions{},
+						},
 					},
 				},
 			}
@@ -308,14 +377,13 @@ var ExitError = fmt.Errorf("exiting")
 
 func Serve(f string, db *sql.DB) error {
 	glog.Infof("listening for a connection at: %v", f)
-	ctx := context.Background() // global context
-	s := NewServer(ctx, db)
-	srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
 
 	if f == defaultSocket {
 		// Use a ReadWriteCloser from stdio and stout.
 		jc := jsonrpc2.NewConn(jsonrpc2.NewStream(&StdioConn{}))
 		ctx := context.Background()
+		s := NewServer(ctx, db, jc)
+		srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
 		if err := srv.ServeStream(ctx, jc); err != nil {
 			if err != ExitError {
 				glog.Infof("error while serving request: %v", err)
@@ -339,6 +407,8 @@ func Serve(f string, db *sql.DB) error {
 
 			ctx := context.Background()
 
+			s := NewServer(ctx, db, jc)
+			srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
 			if err := srv.ServeStream(ctx, jc); err != nil {
 				glog.Infof("error while serving request: %v", err)
 				if err == ExitError {
