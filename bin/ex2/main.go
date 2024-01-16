@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/glebarez/go-sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func InsertAnn(db *sql.DB, field string) error {
@@ -62,7 +62,7 @@ func GetAnn(db *sql.DB) (string, error) {
 }
 
 func main() {
-	db, err := sql.Open("sqlite", "test.sqlite")
+	db, err := sql.Open("sqlite3", "test.sqlite")
 	if err != nil {
 		fmt.Printf("open: %v", err)
 	}
