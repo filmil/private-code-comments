@@ -14,108 +14,19 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	_ "github.com/glebarez/go-sqlite"
+	"github.com/filmil/pcc/pkg"
 	"github.com/golang/glog"
+	_ "github.com/mattn/go-sqlite3"
 	"go.lsp.dev/jsonrpc2"
 	lsp "go.lsp.dev/protocol"
 )
 
-var (
-	// createStatementStr is used to create a new table from scratch.
-	createStatementStr = `
-		BEGIN TRANSACTION;
-
-		CREATE TABLE
-			Annotations (
-				Id		INTEGER PRIMARY KEY AUTOINCREMENT,
-				Content TEXT NOT NULL
-			);
-
-		CREATE TABLE
-			AnnotationLocations (
-				Id			INTEGER PRIMARY KEY AUTOINCREMENT,
-				Workspace	TEXT NOT NULL,
-				Path		TEXT NOT NULL,
-				Line		INTEGER,
-				AnnId		INTEGER,
-
-				FOREIGN KEY(AnnId) REFERENCES Annotations(Id)
-					ON DELETE CASCADE
-			);
-
-		CREATE UNIQUE INDEX
-			AnnotationsByFile
-		ON
-			AnnotationLocations(
-				Workspace,
-				Path
-			);
-
-		COMMIT;
-	`
-
-	// This is how to delete annotations.
-	deleteDeltaStatementStr = `
-		BEGIN TRANSACTION;
-
-		DELETE FROM TABLE	AnnotationLocations
-		WHERE				File = ? AND
-							Line >= ? AND Line <= ?
-		;
-
-		UPDATE TABLE		AnnotationLocations
-		SET					Line = Line + ?
-		WHERE				File = ? AND Line > ?
-		;
-
-		COMMIT;
-	`
-
-	insertDeltaStatementStr = `
-		BEGIN TRANSACTION;
-
-		UPDATE TABLE	AnnotationLocations
-		SET				Line = Line + ?
-		WHERE			File = ? AND Line > ?
-
-		COMMIT;
-	`
-)
-
-type ID = int
-
-// 1-based line index.
-type Line = int
-
-// Annotation represents a single annotation.
-type Annotation struct {
-	ID      ID
-	Content string
-}
-
-// AnnotationLocation is a location
-type AnnotationLocation struct {
-	ID           ID
-	Workspace    string
-	Path         string
-	Line         Line
-	AnnotationID ID
-}
-
 const (
-	pragmas = `?_pragma=foreign_keys(1)`
+	pragmas = `?cache=shared&mode=memory`
 	// For the time being, use an in-memory database.
-	defaultFilename = `:memory:` + pragmas
+	defaultFilename = `file:test.db` + pragmas
 	defaultSocket   = `:stdstream:`
 )
-
-func CreateSchema(db *sql.DB) error {
-	_, err := db.Exec(createStatementStr)
-	if err != nil {
-		return fmt.Errorf("could not create db: %w", err)
-	}
-	return nil
-}
 
 func main() {
 	// Set up glogging
@@ -170,7 +81,7 @@ func main() {
 	}
 
 	// connect and schedule cleanup
-	db, err := sql.Open("sqlite", dbFilename)
+	db, err := sql.Open(pkg.SqliteDriver, dbFilename)
 	if err != nil {
 		glog.Fatalf("could not open database: %v: %v", dbFilename, err)
 	}
@@ -183,7 +94,7 @@ func main() {
 	// Create the data schema if it has not been created before.
 	if needsInit {
 		glog.Infof("creating a new database: %s", dbFilename)
-		if err := CreateSchema(db); err != nil {
+		if err := pkg.CreateSchema(db); err != nil {
 			glog.Fatalf("could not create: %v: %v", dbFilename, err)
 		}
 	}
@@ -229,6 +140,17 @@ type Server struct {
 
 	// Just a temporary thing.
 	count int
+}
+
+// Finds the workspace that the file with uri URI belongs to.
+func (s *Server) FindWorkspace(uri string) string {
+	for _, f := range s.workspaceFolders {
+		if strings.HasPrefix(uri, f.URI) {
+			return f.URI
+		}
+	}
+	// If not found, the workspace is just ""
+	return "(empty ws)"
 }
 
 func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) (*Server, error) {
@@ -302,19 +224,31 @@ func (s *Server) DiagnosticsFn() {
 		glog.Errorf("oops: %v", err)
 	}
 	for {
+		glog.Flush()
 		select {
 		case <-s.globalCtx.Done():
 			break
 		case uri := <-s.diagnosticQueue:
 			glog.V(1).Infof("queue tick.")
-			p := lsp.PublishDiagnosticsParams{
-				URI: uri,
-				Diagnostics: []lsp.Diagnostic{
-					MakeDiagnostic(LineRange{Start: 0, End: 1},
-						fmt.Sprintf("[%v] This is a private comment.\n\nNewline Yadda Yadda.", s.count)),
-				},
+			furi := string(uri)
+			ws := s.FindWorkspace(furi)
+			fname := strings.TrimPrefix(furi, ws)
+			anns, err := pkg.GetAnns(s.db, "" /* ws */, fname)
+			if err != nil {
+				glog.Errorf("error getting annotations: workspace=%v, file=%v: %v", ws, fname, err)
 			}
-			if err := s.conn.Notify(ctx, lsp.MethodTextDocumentPublishDiagnostics, &p); err != nil {
+			if len(anns) == 0 {
+				// Nothing to publish, return early.
+				return
+			}
+			var d []lsp.Diagnostic
+			for _, a := range anns {
+				d = append(d, MakeDiagnostic(
+					LineRange{Start: a.Line, End: a.Line + 1}, a.Content))
+			}
+			p := lsp.PublishDiagnosticsParams{URI: uri, Diagnostics: d}
+			if err := s.conn.Notify(
+				ctx, lsp.MethodTextDocumentPublishDiagnostics, &p); err != nil {
 				glog.Errorf("error while publishing diagnostics for: %v", uri)
 			}
 		}
@@ -335,7 +269,7 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int, u
 			glog.Errorf("oops: %v", err)
 			return fmt.Errorf("could not start transaction: %v", err)
 		}
-		_, err = tx.Exec(insertDeltaStatementStr, uri.Filename(), lr.Start)
+		_, err = tx.Exec(pkg.InsertDeltaStatementStr, uri.Filename(), lr.Start)
 		if err != nil {
 			glog.Errorf("stmt.Exec oops: %v", err)
 			return fmt.Errorf("could not exec the statements: %v", err)
@@ -379,13 +313,13 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			}
 			for _, c := range p.ContentChanges {
 				lr := NewLineRange(c.Range)
-				if lr.NumLines() == 0 {
-					glog.V(1).Infof("Omit a change")
-					continue
-				}
 				// Process each content change.
 				nl := strings.Count(c.Text, `\n`)
 				delta := nl - int(lr.NumLines())
+				if delta == 0 {
+					glog.V(1).Infof("No newline count change. Skipping update.")
+					continue
+				}
 				s.MoveAnnotations(ctx, lr, delta, p.TextDocument.URI)
 			}
 
@@ -412,8 +346,6 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			}
 			s.clientInfo = p.ClientInfo
 			s.workspaceFolders = append(s.workspaceFolders, p.WorkspaceFolders...)
-			glog.V(1).Infof("Request: %v", spew.Sdump(p))
-
 			// Result
 			r := lsp.InitializeResult{
 				ServerInfo: &lsp.ServerInfo{
@@ -536,73 +468,4 @@ func Serve(f string, db *sql.DB) error {
 		}
 	}
 	return nil
-}
-
-// Database operations
-
-// InsertAnn inserts an annotation into the database.
-// The annotation line must not previously exist.
-func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("InsertAnn: transaction begin: %w", err)
-	}
-
-	const insertAnnStmtStr = `
-		INSERT INTO Annotations(Content) VALUES (?);
-	`
-
-	r, err := db.Exec(insertAnnStmtStr, text)
-	if err != nil {
-		return fmt.Errorf("InsertAnn: exec1: %w", err)
-	}
-	id, err := r.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("InsertAnn: lastinsertid: %w", err)
-	}
-
-	const insertAnnLocStmtStr = `
-		INSERT INTO AnnotationLocations(Workspace, Path, Line, AnnId)
-			VALUES (?, ?, ?, ?)
-		;
-	`
-	r, err = db.Exec(insertAnnLocStmtStr, workspace, path, line, id)
-	if err != nil {
-		return fmt.Errorf("InsertAnn: exec2: %w", err)
-	}
-	return tx.Commit()
-}
-
-func DeleteAnn(db *sql.DB, workspace, path string, line uint32) error {
-	return fmt.Errorf("TBD")
-}
-
-func MoveAnn(db *sql.DB, workspace, path string, line uint32, newPath string, newLine uint32) error {
-	return fmt.Errorf("TBD")
-}
-
-func GetAnn(db *sql.DB, workspace, path string, line uint32) (string, error) {
-	const readAnnStmtStr = `
-		SELECT		Workspace
-		FROM		AnnotationLocations
-		--INNER JOIN	Annotations
-		--ON			AnnotationLocations.AnnId = Annotations.Id
-		WHERE
-			AnnotationLocations.Workspace = ?
-		--		AND
-	--		AnnotationLocations.Path = ?
-	--			AND
-	--		AnnotationLocations.Line = ?
-		;
-	`
-	row := db.QueryRow(readAnnStmtStr, workspace)
-	var ret string
-	if err := row.Scan(&ret); err != nil {
-		if err == sql.ErrNoRows {
-			glog.Warningf("no rows for query: workspace=%v, path=%v, line=%v", workspace, path, line)
-		} else {
-			return "", fmt.Errorf("GetAnn: scan: %w, %q", err, ret)
-		}
-	}
-	return ret, nil
 }
