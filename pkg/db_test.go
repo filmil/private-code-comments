@@ -315,11 +315,11 @@ func TestBulkRemove(t *testing.T) {
 			},
 			firstLine: 11,
 			lastLine:  19,
-			delta:     -9,
+			delta:     -8,
 			expected: []Ann{
 				{Line: 1, Content: "one"},
 				{Line: 10, Content: "ten"},
-				{Line: 11, Content: "twenty"},
+				{Line: 12, Content: "twenty"},
 			},
 		},
 		{

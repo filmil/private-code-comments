@@ -194,6 +194,12 @@ func BulkDeleteAnn(db *sql.DB, workspace, path string, firstLine uint32, lastLin
 	if firstLine > lastLine {
 		return fmt.Errorf("firstline: %v, lastline: %v: lastline must not be smaller", firstLine, lastLine)
 	}
+	l := int32(firstLine) - int32(lastLine)
+	if delta < l {
+		return fmt.Errorf("delta: %v, firstline: %v, lastline: %v, l: %v: diff must not be smaller",
+			delta, firstLine, lastLine, l)
+	}
+
 	_, err := db.Exec(`
 		BEGIN TRANSACTION;
 
