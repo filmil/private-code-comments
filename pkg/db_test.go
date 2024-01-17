@@ -15,7 +15,8 @@ var (
 	i uint
 )
 
-func DbName() string {
+// DBName returns a unique database name each time it is called.
+func DBName() string {
 	m.Lock()
 	defer m.Unlock()
 	i++
@@ -23,8 +24,23 @@ func DbName() string {
 	return fmt.Sprintf("file:test_%d.db?cache=shared&mode=memory", i)
 }
 
+// NewDB creates a new test database, which is fully set up with the appropriate
+// data schema for the test.
+func NewDB() *sql.DB {
+	n := DBName()
+	db, err := sql.Open(SqliteDriver, n)
+	if err != nil {
+		panic(fmt.Sprintf("could not open database: %v", err))
+	}
+	if err := CreateSchema(db); err != nil {
+		panic(fmt.Sprintf("could not create database schema: %v", err))
+	}
+	return db
+}
+
 // Must forces the arg call to pass.
 func Must(t *testing.T, err error) {
+	t.Helper()
 	if err != nil {
 		t.Errorf("error: %v", err)
 	}
@@ -52,15 +68,8 @@ func TestInsertRead(t *testing.T) {
 		},
 	}
 
-	db, err := sql.Open(SqliteDriver, DbName())
-	if err != nil {
-		t.Fatalf("could not open database: %v", err)
-	}
-	if err := CreateSchema(db); err != nil {
-		t.Fatalf("could not create database schema: %v", err)
-	}
-
 	for _, test := range tests {
+		db := NewDB()
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			if err := InsertAnn(db, test.workspace, test.path, test.line, test.content); err != nil {
@@ -99,13 +108,7 @@ func TestInsertDelete(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db, err := sql.Open(SqliteDriver, DbName())
-		if err != nil {
-			t.Fatalf("could not open database: %v", err)
-		}
-		if err := CreateSchema(db); err != nil {
-			t.Fatalf("could not create database schema: %v", err)
-		}
+		db := NewDB()
 
 		test := test
 		t.Run(test.name, func(t *testing.T) {
@@ -149,13 +152,8 @@ func TestMove(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db, err := sql.Open(SqliteDriver, DbName())
-		if err != nil {
-			t.Fatalf("could not open database: %v", err)
-		}
-		if err := CreateSchema(db); err != nil {
-			t.Fatalf("could not create database schema: %v", err)
-		}
+		db := NewDB()
+
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			if err := InsertAnn(db, test.workspace, test.path, test.line, test.content); err != nil {
@@ -180,13 +178,7 @@ func TestMove(t *testing.T) {
 }
 
 func TestBulkMove(t *testing.T) {
-	db, err := sql.Open(SqliteDriver, DbName())
-	if err != nil {
-		t.Fatalf("could not open database: %v", err)
-	}
-	if err := CreateSchema(db); err != nil {
-		t.Fatalf("could not create database schema: %v", err)
-	}
+	db := NewDB()
 
 	Must(t, InsertAnn(db, "ws", "path", 43, "one"))
 	Must(t, InsertAnn(db, "ws", "path", 44, "two"))
@@ -265,13 +257,7 @@ func TestInsertReadMulti(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		db, err := sql.Open(SqliteDriver, DbName())
-		if err != nil {
-			t.Fatalf("could not open database: %v", err)
-		}
-		if err := CreateSchema(db); err != nil {
-			t.Fatalf("could not create database schema: %v", err)
-		}
+		db := NewDB()
 
 		test := test
 		t.Run(test.name, func(t *testing.T) {
@@ -291,7 +277,93 @@ func TestInsertReadMulti(t *testing.T) {
 			if reflect.DeepEqual(anns, test.expected) == false {
 				t.Errorf("want: %+v\n\tgot  : %+v", test.expected, anns)
 			}
+		})
+	}
+}
 
+func TestBulkRemove(t *testing.T) {
+	tests := []struct {
+		name      string
+		set       []Ann
+		firstLine uint32
+		lastLine  uint32
+		delta     int32
+		expected  []Ann
+	}{
+		{
+			name: "first",
+			set: []Ann{
+				{Line: 1, Content: "one"},
+				{Line: 10, Content: "ten"},
+			},
+			firstLine: 5,
+			lastLine:  6,
+			delta:     10,
+			expected: []Ann{
+				{Line: 1, Content: "one"},
+				{Line: 20, Content: "ten"},
+			},
+		},
+		{
+			name: "delete segment",
+			set: []Ann{
+				{Line: 1, Content: "one"},
+				{Line: 10, Content: "ten"},
+				{Line: 11, Content: "eleven"},
+				{Line: 19, Content: "nineteen"},
+				{Line: 20, Content: "twenty"},
+			},
+			firstLine: 11,
+			lastLine:  19,
+			delta:     -9,
+			expected: []Ann{
+				{Line: 1, Content: "one"},
+				{Line: 10, Content: "ten"},
+				{Line: 11, Content: "twenty"},
+			},
+		},
+		{
+			name: "replace segment",
+			set: []Ann{
+				{Line: 1, Content: "one"},
+				{Line: 10, Content: "ten"},
+				{Line: 11, Content: "eleven"},
+				{Line: 19, Content: "nineteen"},
+				{Line: 20, Content: "twenty"},
+			},
+			firstLine: 11,
+			lastLine:  18,
+			delta:     -5,
+			expected: []Ann{
+				{Line: 1, Content: "one"},
+				{Line: 10, Content: "ten"},
+				{Line: 14, Content: "nineteen"},
+				{Line: 15, Content: "twenty"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			db := NewDB()
+			defer db.Close()
+			for _, i := range test.set {
+				Must(t, InsertAnn(db, "ws", "path", i.Line, i.Content))
+			}
+
+			if err := BulkDeleteAnn(db, "ws", "path", test.firstLine, test.lastLine, test.delta); err != nil {
+				t.Fatalf("could not bulk move: %v", err)
+			}
+
+			anns, err := GetAnns(db, "ws", "path")
+			if err != nil {
+				t.Fatalf("could not GetAnns: %v", err)
+			}
+
+			if reflect.DeepEqual(anns, test.expected) == false {
+				t.Errorf("want: %+v\n\tgot  : %+v", test.expected, anns)
+			}
 		})
 	}
 }

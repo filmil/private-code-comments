@@ -188,6 +188,46 @@ func BulkMoveAnn(db *sql.DB, workspace, path string, firstLine uint32, delta int
 	return nil
 }
 
+// BulkDeleteAnn bulk-deletes annotations.
+func BulkDeleteAnn(db *sql.DB, workspace, path string, firstLine uint32, lastLine uint32, delta int32) error {
+	// Check invariants.
+	if firstLine > lastLine {
+		return fmt.Errorf("firstline: %v, lastline: %v: lastline must not be smaller", firstLine, lastLine)
+	}
+	_, err := db.Exec(`
+		BEGIN TRANSACTION;
+
+		DELETE FROM		AnnotationLocations
+		WHERE
+						Workspace = ?
+					AND
+						Path = ?
+					AND
+						Line >= ?
+					AND
+						Line <= ?
+		;
+
+		UPDATE			AnnotationLocations
+		SET				Line = Line + ?
+		WHERE
+						Workspace = ?
+					AND
+						Path = ?
+					AND
+						Line >= ?
+		;
+
+		COMMIT;
+	;`, workspace, path, firstLine, lastLine, delta, workspace, path, lastLine+1)
+	if err != nil {
+		return fmt.Errorf(
+			"BulkDeleteAnn: could not move annotations: ws=%q, file=%q, startLine=%v, lastLine=%v, delta=%v:\n\t%v",
+			workspace, path, firstLine, lastLine, delta, err)
+	}
+	return nil
+}
+
 // GetAnn retrieves a single annotation.  Or an error if that particular annotation
 // does not exist.
 func GetAnn(db *sql.DB, workspace, path string, line uint32) (string, error) {

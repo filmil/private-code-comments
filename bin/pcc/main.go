@@ -143,14 +143,17 @@ type Server struct {
 }
 
 // Finds the workspace that the file with uri URI belongs to.
-func (s *Server) FindWorkspace(uri string) string {
-	for _, f := range s.workspaceFolders {
-		if strings.HasPrefix(uri, f.URI) {
-			return f.URI
+// Returns the workspace URI encoded as string, and the relative
+// path for the provided file.
+func (s *Server) FindWorkspace(uri lsp.URI) (string, string) {
+	u := string(uri)
+	for _, ws := range s.workspaceFolders {
+		if strings.HasPrefix(u, ws.URI) {
+			r := RPath(ws.URI, uri)
+			return ws.URI, r
 		}
 	}
-	// If not found, the workspace is just ""
-	return "(empty ws)"
+	return "", u
 }
 
 func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) (*Server, error) {
@@ -215,6 +218,15 @@ func (s *Server) Shutdown() {
 	s.gotShutdown = true
 }
 
+// RPath returns a file path relative to the given workspace.
+func RPath(ws string, uri lsp.URI) string {
+	f := string(uri)
+	if !strings.HasPrefix(f, ws) {
+		panic(fmt.Sprintf("ws is not a prefix: ws=%q, file=%v", ws, uri))
+	}
+	return strings.TrimPrefix(ws, string(uri))
+}
+
 func (s *Server) DiagnosticsFn() {
 	<-s.initialized
 	glog.V(1).Infof("diagnostics up and running")
@@ -230,15 +242,13 @@ func (s *Server) DiagnosticsFn() {
 			break
 		case uri := <-s.diagnosticQueue:
 			glog.V(1).Infof("queue tick.")
-			furi := string(uri)
-			ws := s.FindWorkspace(furi)
-			fname := strings.TrimPrefix(furi, ws)
-			anns, err := pkg.GetAnns(s.db, "" /* ws */, fname)
+			ws, rpath := s.FindWorkspace(uri)
+			anns, err := pkg.GetAnns(s.db, "" /* ws */, rpath)
 			if err != nil {
-				glog.Errorf("error getting annotations: workspace=%v, file=%v: %v", ws, fname, err)
+				glog.Errorf("error getting annotations: workspace=%v, file=%v: %v", ws, rpath, err)
 			}
 			if len(anns) == 0 {
-				// Nothing to publish, return early.
+				glog.V(1).Infof("DiagnosticsFn: nothing to publish.")
 				return
 			}
 			var d []lsp.Diagnostic
@@ -249,13 +259,13 @@ func (s *Server) DiagnosticsFn() {
 			p := lsp.PublishDiagnosticsParams{URI: uri, Diagnostics: d}
 			if err := s.conn.Notify(
 				ctx, lsp.MethodTextDocumentPublishDiagnostics, &p); err != nil {
-				glog.Errorf("error while publishing diagnostics for: %v", uri)
+				glog.Errorf("DiagnosticsFn: error while publishing diagnostics for: %v", uri)
 			}
 		}
 	}
 }
 
-func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int, uri lsp.URI) error {
+func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32, uri lsp.URI) error {
 	if delta == 0 {
 		// We already excluded delta==0 when calling here.
 		glog.Fatalf("delta==0: this should not happen")
@@ -264,21 +274,16 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int, u
 	if delta > 0 {
 		// When lines are inserted, we increment the line number of all annotations from the
 		// line after the insert line by the number of inserted lines.
-		tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
-		if err != nil {
-			glog.Errorf("oops: %v", err)
-			return fmt.Errorf("could not start transaction: %v", err)
+		ws, rpath := s.FindWorkspace(uri)
+		if err := pkg.BulkMoveAnn(s.db, ws, rpath, lr.Start, delta); err != nil {
+			return fmt.Errorf("MoveAnnotations: %w", err)
 		}
-		_, err = tx.Exec(pkg.InsertDeltaStatementStr, uri.Filename(), lr.Start)
-		if err != nil {
-			glog.Errorf("stmt.Exec oops: %v", err)
-			return fmt.Errorf("could not exec the statements: %v", err)
-		}
-		tx.Commit()
-	} else if delta < 0 {
+	}
+	if delta < 0 {
 		glog.Errorf("delta<0: TBD")
 	}
 
+	// Refresh diagnostics
 	s.diagnosticQueue <- uri
 	return nil
 }
@@ -315,7 +320,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 				lr := NewLineRange(c.Range)
 				// Process each content change.
 				nl := strings.Count(c.Text, `\n`)
-				delta := nl - int(lr.NumLines())
+				delta := int32(nl - int(lr.NumLines()))
 				if delta == 0 {
 					glog.V(1).Infof("No newline count change. Skipping update.")
 					continue
