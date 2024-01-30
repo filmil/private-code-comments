@@ -1,2 +1,2 @@
-pcc
-*.sqlite
+bazel-*
+user.bazelrc

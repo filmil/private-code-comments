@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "pcc_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/filmil/private-code-comments/bin/pcc",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg",
+        "@com_github_davecgh_go_spew//spew",
+        "@com_github_golang_glog//:glog",
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+        "@dev_lsp_go_jsonrpc2//:jsonrpc2",
+        "@dev_lsp_go_protocol//:protocol",
+    ],
+)
+
+go_binary(
+    name = "pcc",
+    embed = [":pcc_lib"],
+    visibility = ["//visibility:public"],
+)

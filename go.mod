@@ -1,4 +1,4 @@
-module github.com/filmil/pcc
+module github.com/filmil/private-code-comments
 
 go 1.20
 

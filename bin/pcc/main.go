@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/filmil/pcc/pkg"
+	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
 	_ "github.com/mattn/go-sqlite3"
 	"go.lsp.dev/jsonrpc2"
