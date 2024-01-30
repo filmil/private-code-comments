@@ -1,3 +1,5 @@
+# Private Code Comments LSP [![Test status](https://github.com/filmil/private-code-comments/workflows/Test/badge.svg)](https://github.com/filmil/private-code-comments/workflows/Test/badge.svg)
+
 ## How to  configure neovim to run this LSP.
 
 ```lua
