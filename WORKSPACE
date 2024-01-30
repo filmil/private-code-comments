@@ -1,6 +1,17 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
+    name = "rules_foreign_cc",
+    sha256 = "2a4d07cd64b0719b39a7c12218a3e507672b82a97b98c6a89d38565894cf7c51",
+    strip_prefix = "rules_foreign_cc-0.9.0",
+    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.9.0.tar.gz",
+)
+
+load("@rules_foreign_cc//foreign_cc:repositories.bzl", "rules_foreign_cc_dependencies")
+
+rules_foreign_cc_dependencies()
+
+http_archive(
     name = "io_bazel_rules_go",
     sha256 = "d6ab6b57e48c09523e93050f13698f708428cfd5e619252e369d377af6597707",
     urls = [
@@ -298,5 +309,15 @@ http_archive(
     strip_prefix = "buildtools-4.2.2",
     urls = [
         "https://github.com/bazelbuild/buildtools/archive/refs/tags/4.2.2.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "neovim",
+    build_file = "//third_party/neovim:BUILD.bazel.neovim",
+    integrity = "sha256-RO45XZtfihS+jsANO46tNOGP5kYeQMnIxQ5pVtZDtso=",
+    strip_prefix = "nvim-linux64",
+    urls = [
+        "https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz",
     ],
 )

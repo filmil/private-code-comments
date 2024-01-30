@@ -1,0 +1,7 @@
+package(default_visibility = ["//visibility:public"])
+
+# This is the directory to be added to the runtime path.
+filegroup(
+    name = "lua_dir",
+    srcs = ["lua"],
+)

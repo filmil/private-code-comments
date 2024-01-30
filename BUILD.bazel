@@ -1,5 +1,7 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
 
+package(default_visibility = ["//visibility:public"])
+
 # bazel run //:gazelle
 # bazel run //:gazelle -- update-repos --from_file=go.mod
 # gazelle:prefix github.com/filmil/private-code-comments
@@ -10,4 +12,14 @@ load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
 # bazel run //:buildifier
 buildifier(
     name = "buildifier",
+)
+
+filegroup(
+    name = "lua_dir",
+    srcs = ["plugin"],
+)
+
+filegroup(
+    name = "config_dir",
+    srcs = ["config"],
 )

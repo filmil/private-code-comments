@@ -1,0 +1,37 @@
+filegroup(
+		name = "bin",
+		srcs = [
+				"bin/nvim",
+		],
+		visibility = [ "//visibility:public"],
+)
+
+filegroup(
+		name = "lib",
+		srcs = [
+				"lib/nvim/parser/c.so",
+				"lib/nvim/parser/lua.so",
+				"lib/nvim/parser/query.so",
+				"lib/nvim/parser/vim.so",
+				"lib/nvim/parser/vimdoc.so",
+		],
+		visibility = [ "//visibility:public"],
+)
+
+filegroup(
+		name = "lib_dir",
+		srcs = [ "lib/nvim/parser", ],
+		visibility = [ "//visibility:public"],
+)
+
+filegroup(
+		name = "share",
+		srcs = glob(["share/**/*"]),
+		visibility = [ "//visibility:public"],
+)
+
+filegroup(
+		name = "share_dir",
+		srcs = [ "share/nvim/runtime", ],
+		visibility = [ "//visibility:public"],
+)
