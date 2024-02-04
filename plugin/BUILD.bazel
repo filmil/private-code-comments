@@ -2,5 +2,5 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "nvim_dir",
-    srcs = [ "nvim", ],
-) 
+    srcs = ["nvim"],
+)

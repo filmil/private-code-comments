@@ -3,9 +3,21 @@ package pkg
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"strings"
 
+	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
+)
+
+const (
+	Pragmas = `?cache=shared&mode=memory`
+	// For the time being, use an in-memory database.
+	DefaultFilename = `file:test.db` + Pragmas
+	DefaultSocket   = `:stdstream:`
 )
 
 const (
@@ -37,6 +49,41 @@ const (
 
 		COMMIT;`
 )
+
+// CreateDBFile creates an empty database file at the given name.
+// Returns true if the database needs to be initialized.
+func CreateDBFile(dbFilename string) (bool, error) {
+	var needsInit bool
+	if dbFilename == pkg.DefaultFilename {
+		needsInit = true
+	} else {
+		_, err := os.Stat(dbFilename)
+		if err != nil {
+			if !errors.Is(err, fs.ErrNotExist) {
+				return false, fmt.Errorf("unknown error: %v: %w", dbFilename, err)
+			}
+			// No such file, create it and set for schema creation.
+			_, err := os.Create(dbFilename)
+			if err != nil {
+				return false, fmt.Errorf("could not create: %v: %w", dbFilename, err)
+			}
+
+			// Add the pragma suffixes
+			if !strings.HasSuffix(dbFilename, pkg.Pragmas) {
+				dbFilename = fmt.Sprintf("%s%s", dbFilename, pkg.Pragmas)
+			}
+			needsInit = true
+		}
+	}
+	return needsInit, nil
+}
+
+func CreateDBSchema(db *sql.DB) error {
+	if err := pkg.CreateSchema(db); err != nil {
+		return fmt.Errorf("could not create: %v", err)
+	}
+	return nil
+}
 
 // CreateSchema creates the database with the appropriate file pkg.
 func CreateSchema(db *sql.DB) error {

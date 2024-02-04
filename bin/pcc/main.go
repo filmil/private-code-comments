@@ -21,13 +21,6 @@ import (
 	lsp "go.lsp.dev/protocol"
 )
 
-const (
-	pragmas = `?cache=shared&mode=memory`
-	// For the time being, use an in-memory database.
-	defaultFilename = `file:test.db` + pragmas
-	defaultSocket   = `:stdstream:`
-)
-
 func main() {
 	// Set up glogging
 	defer func() {
@@ -43,9 +36,9 @@ func main() {
 
 	// Set up flags
 	flag.StringVar(&dbFilename,
-		"db", defaultFilename, "The file name for the private comments")
+		"db", pkg.DefaultFilename, "The file name for the private comments")
 	flag.StringVar(&socketFile,
-		"socket-file", defaultSocket,
+		"socket-file", pkg.DefaultSocket,
 		"The socket to use for communication")
 	flag.Parse()
 
@@ -57,27 +50,9 @@ func main() {
 		// If the file does not exist, we're done here.
 	}
 
-	var needsInit bool
-	if dbFilename == defaultFilename {
-		needsInit = true
-	} else {
-		_, err := os.Stat(dbFilename)
-		if err != nil {
-			if !errors.Is(err, fs.ErrNotExist) {
-				glog.Fatalf("unknown error: %v: %v", dbFilename, err)
-			}
-			// No such file, create it and set for schema creation.
-			_, err := os.Create(dbFilename)
-			if err != nil {
-				glog.Fatal(err)
-			}
-
-			// Add the pragma suffixes
-			if !strings.HasSuffix(dbFilename, pragmas) {
-				dbFilename = fmt.Sprintf("%s%s", dbFilename, pragmas)
-			}
-			needsInit = true
-		}
+	needsInit, err := pkg.CreateDBFile(dbFilename)
+	if err != nil {
+		glog.Fatalf("could not create db file: %v: %v", dbFilename, err)
 	}
 
 	// connect and schedule cleanup
@@ -92,9 +67,9 @@ func main() {
 	}()
 
 	// Create the data schema if it has not been created before.
+	glog.Infof("creating a new database: %s", dbFilename)
 	if needsInit {
-		glog.Infof("creating a new database: %s", dbFilename)
-		if err := pkg.CreateSchema(db); err != nil {
+		if err := pkg.CreateDBSchema(db); err != nil {
 			glog.Fatalf("could not create: %v: %v", dbFilename, err)
 		}
 	}
@@ -426,7 +401,7 @@ var ExitError = fmt.Errorf("exiting")
 func Serve(f string, db *sql.DB) error {
 	glog.Infof("listening for a connection at: %v", f)
 
-	if f == defaultSocket {
+	if f == DefaultSocket {
 		// Use a ReadWriteCloser from stdio and stout.
 		jc := jsonrpc2.NewConn(jsonrpc2.NewStream(&StdioConn{}))
 		ctx := context.Background()

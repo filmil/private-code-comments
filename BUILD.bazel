@@ -18,4 +18,3 @@ filegroup(
     name = "plugin_dir",
     srcs = ["plugin"],
 )
-
