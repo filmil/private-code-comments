@@ -11,19 +11,26 @@ def run_neovim(name, args = [], data = []):
             "@neovim//:bin",
             "@neovim//:lib",
             "@neovim//:lib_dir",
-            "//:config_dir",
             "@neovim//:share",
             "@neovim//:share_dir",
-            "//:lua_dir",
-            "//config/nvim:scripts",
+            "//:plugin_dir",
+            "//plugin:nvim_dir",
+            "//bin/pcc:pcc"
         ] + data,
         args = [
-            "$(location //:config_dir)",
-            "$(location //:lua_dir)",
+            # $x
+            "$(location //plugin:nvim_dir)",
+            # $1
+            "$(location //bin/pcc:pcc)",
+            # $2
+            "$(location //:plugin_dir)",
+            # $3
             # The location of the share dir.
             "$(location @neovim//:share_dir)",
+            # $4
             # The location of the lib dir, with .so files.
             "$(location @neovim//:lib_dir)",
+            # $5
             # The nvim binary itself.
             "$(location @neovim//:bin)",
         ] + args,

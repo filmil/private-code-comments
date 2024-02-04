@@ -15,11 +15,7 @@ buildifier(
 )
 
 filegroup(
-    name = "lua_dir",
+    name = "plugin_dir",
     srcs = ["plugin"],
 )
 
-filegroup(
-    name = "config_dir",
-    srcs = ["config"],
-)

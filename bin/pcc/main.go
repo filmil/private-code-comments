@@ -241,7 +241,7 @@ func (s *Server) DiagnosticsFn() {
 		case <-s.globalCtx.Done():
 			break
 		case uri := <-s.diagnosticQueue:
-			glog.V(1).Infof("queue tick.")
+			glog.V(1).Infof("queue tick: %q", uri.Filename())
 			ws, rpath := s.FindWorkspace(uri)
 			anns, err := pkg.GetAnns(s.db, "" /* ws */, rpath)
 			if err != nil {

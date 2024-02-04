@@ -4,8 +4,12 @@ run_neovim(
     name = "neovim",
     args = [
         "--headless",
+        "$(location :textfile.txt)"
     ],
     data = [
-        "//plugin/lua/pcc:scripts",
+        "//plugin/nvim:scripts",
+        "//plugin/nvim/lua/pcc:scripts",
+        ":textfile.txt",
     ],
 )
+
