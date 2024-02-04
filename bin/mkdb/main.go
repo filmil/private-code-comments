@@ -7,6 +7,7 @@ import (
 
 	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {

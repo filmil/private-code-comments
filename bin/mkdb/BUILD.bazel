@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//pkg",
         "@com_github_golang_glog//:glog",
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
     ],
 )
 

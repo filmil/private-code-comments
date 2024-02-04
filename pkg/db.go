@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
 )
 
@@ -54,7 +53,7 @@ const (
 // Returns true if the database needs to be initialized.
 func CreateDBFile(dbFilename string) (bool, error) {
 	var needsInit bool
-	if dbFilename == pkg.DefaultFilename {
+	if dbFilename == DefaultFilename {
 		needsInit = true
 	} else {
 		_, err := os.Stat(dbFilename)
@@ -69,8 +68,8 @@ func CreateDBFile(dbFilename string) (bool, error) {
 			}
 
 			// Add the pragma suffixes
-			if !strings.HasSuffix(dbFilename, pkg.Pragmas) {
-				dbFilename = fmt.Sprintf("%s%s", dbFilename, pkg.Pragmas)
+			if !strings.HasSuffix(dbFilename, Pragmas) {
+				dbFilename = fmt.Sprintf("%s%s", dbFilename, Pragmas)
 			}
 			needsInit = true
 		}
@@ -79,7 +78,7 @@ func CreateDBFile(dbFilename string) (bool, error) {
 }
 
 func CreateDBSchema(db *sql.DB) error {
-	if err := pkg.CreateSchema(db); err != nil {
+	if err := CreateSchema(db); err != nil {
 		return fmt.Errorf("could not create: %v", err)
 	}
 	return nil
