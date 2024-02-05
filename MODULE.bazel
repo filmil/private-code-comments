@@ -4,3 +4,7 @@
 #
 # For more details, please check https://github.com/bazelbuild/bazel/issues/18958
 ###############################################################################
+bazel_dep(name = "bazel_skylib", version = "1.5.0")
+
+# If the Gazelle plugin is needed:
+bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.5.0", dev_dependency = True)

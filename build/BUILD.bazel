@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_test")
+load(":rules.bzl", "nvim_integration_test")
+
+go_test(
+    name = "build_test",
+    srcs = ["some_test.go"],
+    tags = [ "manual" ],
+)
+
+nvim_integration_test(
+    name = "first_test",
+    binary = ":build_test",
+    query = ":query.sql",
+)

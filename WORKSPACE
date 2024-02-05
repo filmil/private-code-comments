@@ -1,4 +1,6 @@
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 http_archive(
     name = "rules_foreign_cc",
@@ -321,3 +323,17 @@ http_archive(
         "https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz",
     ],
 )
+
+# gotopt2 for options processing.
+maybe(
+    git_repository,
+    name = "gotopt2",
+    commit = "184f9765881f7da793135bdd64dd99eebbfe0e42",
+    remote = "https://github.com/filmil/gotopt2",
+    shallow_since = "1697848436 -0700",
+)
+
+load("@gotopt2//build:deps.bzl", "gotopt2_dependencies")
+
+gotopt2_dependencies()
+

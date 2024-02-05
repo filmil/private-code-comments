@@ -401,7 +401,7 @@ var ExitError = fmt.Errorf("exiting")
 func Serve(f string, db *sql.DB) error {
 	glog.Infof("listening for a connection at: %v", f)
 
-	if f == DefaultSocket {
+	if f == pkg.DefaultSocket {
 		// Use a ReadWriteCloser from stdio and stout.
 		jc := jsonrpc2.NewConn(jsonrpc2.NewStream(&StdioConn{}))
 		ctx := context.Background()

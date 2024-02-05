@@ -1,4 +1,4 @@
-def run_neovim(name, args = [], data = []):
+def run_neovim(name, args = [], data = [], deps = []):
     """
     Runs the neovim binary with the supplied arguments.
     """
@@ -15,23 +15,18 @@ def run_neovim(name, args = [], data = []):
             "@neovim//:share_dir",
             "//:plugin_dir",
             "//plugin:nvim_dir",
-            "//bin/pcc:pcc"
+            "//bin/pcc:pcc",
+            "@gotopt2//cmd/gotopt2",
         ] + data,
         args = [
-            # $x
-            "$(location //plugin:nvim_dir)",
-            # $1
-            "$(location //bin/pcc:pcc)",
-            # $2
-            "$(location //:plugin_dir)",
-            # $3
-            # The location of the share dir.
-            "$(location @neovim//:share_dir)",
-            # $4
-            # The location of the lib dir, with .so files.
-            "$(location @neovim//:lib_dir)",
-            # $5
-            # The nvim binary itself.
-            "$(location @neovim//:bin)",
+            "--plugin-nvim-dir", "$(location //plugin:nvim_dir)",
+            "--pcc-binary", "$(location //bin/pcc:pcc)",
+            "--nvim-lua-dir", "$(location //:plugin_dir)",
+            "--nvim-share-dir", "$(location @neovim//:share_dir)",
+            "--nvim-lib-dir", "$(location @neovim//:lib_dir)",
+            "--nvim-binary", "$(location @neovim//:bin)",
         ] + args,
+        deps = [
+            "@bazel_tools//tools/bash/runfiles",
+        ] + deps,
     )

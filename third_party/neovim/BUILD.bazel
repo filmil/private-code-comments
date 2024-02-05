@@ -1,8 +1,11 @@
 load(":macros.bzl", "run_neovim")
 
+package(default_visibility = ["//visibility:public"])
+
 run_neovim(
     name = "neovim",
     args = [
+        "--",  # Pass the args below directly to neovim.
         "--headless",
         "$(location :textfile.txt)",
     ],

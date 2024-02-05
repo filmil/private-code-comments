@@ -4,6 +4,8 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"io"
+	"os"
 
 	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
@@ -43,7 +45,17 @@ func main() {
 		glog.Fatalf("could not create: %v: %v", dbFilename, err)
 	}
 
-	_, err = db.Exec(dbQueryFile)
+	f, err := os.Open(dbQueryFile)
+	if err != nil {
+		glog.Fatalf("could not open query file: %q: %v", dbQueryFile, err)
+	}
+
+	q, err := io.ReadAll(f)
+	if err != nil {
+		glog.Fatalf("could not read query file: %q: %v", dbQueryFile, err)
+	}
+
+	_, err = db.Exec(q)
 	if err != nil {
 		glog.Fatalf("could not execute query: %v", err)
 	}
