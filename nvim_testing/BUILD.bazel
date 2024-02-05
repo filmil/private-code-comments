@@ -1,0 +1,26 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load(":macros.bzl", "nvim_go_test")
+
+go_library(
+    name = "nvim_testing",
+    srcs = ["neovim.go"],
+    importpath = "github.com/filmil/private-code-comments/nvim_testing",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_neovim_go_client//nvim"],
+)
+
+nvim_go_test(
+    name = "nvim_testing_test",
+    srcs = ["target_test.go"],
+    args = [
+        "--edit-file",
+        "$(location //third_party/neovim:textfile.txt)",
+    ],
+    data = [
+        "//third_party/neovim:textfile.txt",
+    ],
+    deps = [
+        "@com_github_neovim_go_client//msgpack/rpc",
+    ],
+    embed = [":nvim_testing"],
+)

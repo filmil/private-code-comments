@@ -286,6 +286,13 @@ go_repository(
     version = "v1.21.0",
 )
 
+go_repository(
+    name = "com_github_neovim_go_client",
+    importpath = "github.com/neovim/go-client",
+    sum = "h1:kl3PgYgbnBfvaIoGYi3ojyXH0ouY6dJY/rYUCssZKqI=",
+    version = "v1.2.1",
+)
+
 go_rules_dependencies()
 
 go_register_toolchains(version = "1.20.7")
@@ -336,4 +343,3 @@ maybe(
 load("@gotopt2//build:deps.bzl", "gotopt2_dependencies")
 
 gotopt2_dependencies()
-

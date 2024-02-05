@@ -4,7 +4,7 @@ load(":rules.bzl", "nvim_integration_test")
 go_test(
     name = "build_test",
     srcs = ["some_test.go"],
-    tags = [ "manual" ],
+    tags = ["manual"],
 )
 
 nvim_integration_test(

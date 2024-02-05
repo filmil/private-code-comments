@@ -5,11 +5,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/filmil/private-code-comments/bin/mkfifo",
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg",
-        "@com_github_golang_glog//:glog",
-        "@org_golang_x_sys//unix",
-    ],
+    deps = ["@com_github_golang_glog//:glog"],
 )
 
 go_binary(

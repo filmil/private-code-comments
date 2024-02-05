@@ -6,6 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/glog v1.2.0
 	github.com/mattn/go-sqlite3 v1.14.19
+	github.com/neovim/go-client v1.2.1
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
 )
