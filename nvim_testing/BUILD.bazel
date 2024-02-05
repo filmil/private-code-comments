@@ -11,7 +11,7 @@ go_library(
 
 nvim_go_test(
     name = "nvim_testing_test",
-    srcs = ["target_test.go"],
+    srcs = ["neovim_test.go"],
     args = [
         "--edit-file",
         "$(location //third_party/neovim:textfile.txt)",

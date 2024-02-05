@@ -55,7 +55,7 @@ func main() {
 		glog.Fatalf("could not read query file: %q: %v", dbQueryFile, err)
 	}
 
-	_, err = db.Exec(q)
+	_, err = db.Exec(string(q))
 	if err != nil {
 		glog.Fatalf("could not execute query: %v", err)
 	}
