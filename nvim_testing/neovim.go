@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/filmil/private-code-comments/pkg"
@@ -114,6 +115,7 @@ func WaitForAnns(ctx context.Context, db *sql.DB, ws lsp.URI, file string, anns 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	var i int
 	for {
 		actual, err := pkg.GetAnns(db, string(ws), file)
 		if err != nil {
@@ -122,6 +124,7 @@ func WaitForAnns(ctx context.Context, db *sql.DB, ws lsp.URI, file string, anns 
 		if reflect.DeepEqual(anns, actual) {
 			return nil
 		}
+		i++
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("WaitForAnns: timeout: got=%+v, want: %+v", actual, anns)
@@ -137,4 +140,52 @@ func InsertText(cl *nvim.Nvim, buf nvim.Buffer, line int, text string) error {
 		bytes = append(bytes, []byte(l))
 	}
 	return cl.SetBufferText(buf, line, 0, line, 0, bytes)
+}
+
+func RemoveTextLines(cl *nvim.Nvim, buf nvim.Buffer, begin, count int) error {
+	ret := cl.SetBufferText(buf, begin, 0, begin+count, 0, [][]byte{{}})
+	return ret
+}
+
+func GetAllLines(cl *nvim.Nvim, buf nvim.Buffer) ([]string, error) {
+	l, err := cl.BufferLines(buf, 0, -1, false)
+	if err != nil {
+		return []string{}, fmt.Errorf("could not get lines: %w", err)
+	}
+	var ret []string
+	for _, b := range l {
+		ret = append(ret, string(b))
+	}
+	return ret, nil
+}
+
+func LogAllLines(t *testing.T, lines []string) {
+	fmt.Printf("====: %v\n", t.Name())
+	for i, ln := range lines {
+		fmt.Printf("line:%03d: %q\n", i, ln)
+	}
+}
+
+// WaitForAnns waits for annotations.  Returns error if the exact annotations are
+// not found.
+func WaitForLine(ctx context.Context, cl *nvim.Nvim, buf nvim.Buffer, line int, text string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	for {
+		actual, err := GetAllLines(cl, buf)
+		if err != nil {
+			return fmt.Errorf("could not get lines: %w", err)
+		}
+		if len(actual) > 0 && len(actual) > line {
+			if actual[line] == text {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("WaitForLine: timeout: got=%q, want: %q", actual[line], text)
+		case <-time.After(1 * time.Second):
+		}
+	}
 }

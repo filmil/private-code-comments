@@ -1,23 +1,23 @@
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
-Some text.
+     1	Some text.
+     2	Some text.
+     3	Some text.
+     4	Some text.
+     5	Some text.
+     6	Some text.
+     7	Some text.
+     8	Some text.
+     9	Some text.
+    10	Some text.
+    11	Some text.
+    12	Some text.
+    13	Some text.
+    14	Some text.
+    15	Some text.
+    16	Some text.
+    17	Some text.
+    18	Some text.
+    19	Some text.
+    20	Some text.
+    21	Some text.
+    22	Some text.
+    23	Some text.

@@ -25,6 +25,7 @@ func main() {
 	// Set up glogging
 	defer func() {
 		glog.Flush()
+		glog.Exit()
 	}()
 
 	var (
@@ -146,13 +147,17 @@ type LineRange struct {
 	// Start is zero based.
 	Start uint32
 	// End is zero based.
-	End uint32
+	End              uint32
+	StartCol, EndCol uint32
 }
 
+// NewLineRange creates a unified LineRange from equivalent LSP type.
 func NewLineRange(r lsp.Range) LineRange {
 	return LineRange{
-		Start: r.Start.Line,
-		End:   r.End.Line,
+		Start:    r.Start.Line,
+		End:      r.End.Line,
+		StartCol: r.Start.Character,
+		EndCol:   r.End.Character,
 	}
 }
 
@@ -191,9 +196,6 @@ func (s *Server) DiagnosticsFn() {
 	glog.V(1).Infof("diagnostics up and running")
 	ctx, cancel := context.WithCancel(s.globalCtx)
 	defer cancel()
-	if err := s.conn.Notify(ctx, "$/moops", "oops"); err != nil {
-		glog.Errorf("oops: %v", err)
-	}
 	for {
 		glog.Flush()
 		select {
@@ -224,6 +226,7 @@ func (s *Server) DiagnosticsFn() {
 	}
 }
 
+// INVARIANT: delta != 0.
 func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32, uri lsp.URI) error {
 	if delta == 0 {
 		// We already excluded delta==0 when calling here.
@@ -239,7 +242,8 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32,
 		}
 	}
 	if delta < 0 {
-		glog.Errorf("delta<0: TBD")
+		// Deletion is complicated.
+		glog.Errorf("delta=%d<0: TBD", delta)
 	}
 
 	// Refresh diagnostics

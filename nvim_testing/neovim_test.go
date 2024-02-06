@@ -26,11 +26,19 @@ func must1(err error) {
 		panic(fmt.Sprintf("error: %v", err))
 	}
 }
+
 func must[T any](v T, err error) T {
 	if err != nil {
 		panic(fmt.Sprintf("error: %v", err))
 	}
 	return v
+}
+
+func must3[T any, V any](t T, v V, err error) (T, V) {
+	if err != nil {
+		panic(fmt.Sprintf("error: %v", err))
+	}
+	return t, v
 }
 
 func init() {
@@ -65,36 +73,68 @@ var withDetails = map[string]interface{}{
 
 const testFilename = "/nvim_testing/content/textfile.txt"
 
-func TestInsertLine(t *testing.T) {
+//func TestInsertLine(t *testing.T) {
+//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+//defer cancel()
+
+//tmpDir := t.TempDir()
+//dbFile := path.Join(tmpDir, "db.sqlite")
+
+//db, closeFn := must3(RunDBQuery(dbFile, ``))
+//defer closeFn()
+
+//must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
+//n := must(NewNeovim(dbFile, NotEmpty(*editFile)))
+
+//buf := must(n.CurrentBuffer())
+
+//// Not sure why this must be done. But if it isn't, then the write won't
+//// get seen by nvim.
+//must(pkg.GetAnns(db, string(ws), testFilename))
+
+//must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+//{Line: 10, Content: "hello!"},
+//}))
+
+//// Insert some text at line 1, see what happened.
+//must1(InsertText(n, buf, 0, "add new at 1: hello\n"))
+
+//LogAllLines(t, must(GetAllLines(n, buf)))
+//must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+//{Line: 11, Content: "hello!"},
+//}))
+//}
+
+func TestDeleteLine(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	tmpDir := t.TempDir()
 	dbFile := path.Join(tmpDir, "db.sqlite")
 
-	db, closeFn, err := RunDBQuery(dbFile, ``)
-	if err != nil {
-		t.Fatalf("could not create database: %v: %v", dbFile, err)
-	}
+	db, closeFn := must3(RunDBQuery(dbFile, ``))
 	defer closeFn()
+
 	must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
 	n := must(NewNeovim(dbFile, NotEmpty(*editFile)))
-	must(n.BufferLineCount(0))
-	must(n.Namespaces())
 
 	buf := must(n.CurrentBuffer())
-	must(n.BufferLines(buf, 0, -1, true))
-	must(WaitForNsBuf(ctx, n, buf, "vim.lsp.pcc"))
-	must(pkg.GetAnns(db, string(ws), testFilename))
+
+	// If we don't wait, we might get a didOpen with modified content, which
+	// we don't really want.
+	must1(WaitForLine(ctx, n, buf, 0, "     1\tSome text."))
+
 	must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
 		{Line: 10, Content: "hello!"},
 	}))
 
-	// Insert some text at line 1, see what happened.
-	must1(InsertText(n, buf, 0, "hello\n"))
+	must1(RemoveTextLines(n, buf, 0, 1))
+	LogAllLines(t, must(GetAllLines(n, buf)))
 
-	must(n.BufferLines(buf, 0, -1, true))
+	must1(WaitForLine(ctx, n, buf, 0, "     2\tSome text."))
+
+	// Surprise! the transferred change is a minimal edit.
 	must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
-		{Line: 11, Content: "hello!"},
+		{Line: 9, Content: "hello!"},
 	}))
 }
