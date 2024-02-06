@@ -2,11 +2,9 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
-	"io"
-	"os"
 
+	"github.com/filmil/private-code-comments/nvim_testing"
 	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
 	_ "github.com/mattn/go-sqlite3"
@@ -32,31 +30,9 @@ func main() {
 		glog.Fatalf("flag --db=... is required")
 	}
 
-	_, err := pkg.CreateDBFile(dbFilename)
+	_, closeDB, err := nvim_testing.RunDBQuery(dbFilename, dbQueryFile)
 	if err != nil {
-		glog.Fatalf("could not create db file: %v: %v", dbFilename, err)
+		glog.Fatalf("could not run DB query: %v:", err)
 	}
-
-	db, err := sql.Open(pkg.SqliteDriver, dbFilename)
-	if err != nil {
-		glog.Fatalf("could not open database: %v: %v", dbFilename, err)
-	}
-	if err := pkg.CreateDBSchema(db); err != nil {
-		glog.Fatalf("could not create: %v: %v", dbFilename, err)
-	}
-
-	f, err := os.Open(dbQueryFile)
-	if err != nil {
-		glog.Fatalf("could not open query file: %q: %v", dbQueryFile, err)
-	}
-
-	q, err := io.ReadAll(f)
-	if err != nil {
-		glog.Fatalf("could not read query file: %q: %v", dbQueryFile, err)
-	}
-
-	_, err = db.Exec(string(q))
-	if err != nil {
-		glog.Fatalf("could not execute query: %v", err)
-	}
+	defer closeDB()
 }

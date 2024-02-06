@@ -84,6 +84,9 @@ flags:
   type: string
   default: "neovim.fifo"
   help: ""
+- name: "debug-keep-logs"
+  type: bool
+  help: "if set, logs are kept, not removed."
 EOF
 )
 if [[ "$?" == "11" ]]; then
@@ -94,15 +97,17 @@ fi
 # Evaluate the output of the call to gotopt2, shell vars assignment is here.
 eval "${GOTOPT2_OUTPUT}"
 
+function cleanup() {
+  if [[ "${gotopt2_debug_keep_logs}" != "true" ]]; then
+    rm -fr ${_tmpdir}
+  fi
+}
+
 _tmpdir="${gotopt2_tmp_dir}"
 if [[ ${_tmp_dir} == "" ]]; then
     _tmpdir="$(mktemp -d --tmpdir="${TMPDIR}" run_neovim.XXXXXXX)"
-    trap 'rm -fr ${_tmpdir}' EXIT
+    trap 'cleanup()' EXIT
 fi
-
-readonly _fifo_file="${_tmp_dir}/${gotopt2_fifo_filename}"
-mkfifo "${_fifo_file}"
-trap 'rm -f ${_fifo_file}' EXIT
 
 if [[ "${gotopt2_plugin_nvim_dir}" == "" ]]; then
     echo "the flag --plugin-nvim-dir=... is required"
@@ -144,6 +149,7 @@ env \
     LOGNAME="unknown" \
     PATH="" \
     HOME="${_tmpdir}" \
+    PCC_LOG_DIR="${_tmpdir}" \
     PCC_BINARY="${_pcc_binary}" \
     XDG_CONFIG_HOME="${_nvim_lua_dir}" \
     XDG_CONFIG_DIRS="${_nvim_lua_dir}:${_plugin_nvim_dir}" \

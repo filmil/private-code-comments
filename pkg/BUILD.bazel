@@ -2,15 +2,27 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "pkg",
-    srcs = ["db.go"],
+    srcs = [
+        "db.go",
+        "files.go",
+    ],
     importpath = "github.com/filmil/private-code-comments/pkg",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_golang_glog//:glog"],
+    deps = [
+        "@com_github_golang_glog//:glog",
+        "@dev_lsp_go_protocol//:protocol",
+    ],
 )
 
 go_test(
     name = "pkg_test",
-    srcs = ["db_test.go"],
+    srcs = [
+        "db_test.go",
+        "files_test.go",
+    ],
     embed = [":pkg"],
-    deps = ["@com_github_mattn_go_sqlite3//:go-sqlite3"],
+    deps = [
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+        "@dev_lsp_go_protocol//:protocol",
+    ],
 )

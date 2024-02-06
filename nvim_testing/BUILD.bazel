@@ -3,10 +3,21 @@ load(":macros.bzl", "nvim_go_test")
 
 go_library(
     name = "nvim_testing",
-    srcs = ["neovim.go"],
+    srcs = [
+        "neovim.go",
+        "sqlite.go",
+    ],
     importpath = "github.com/filmil/private-code-comments/nvim_testing",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_neovim_go_client//nvim"],
+    deps = [
+        "//pkg",
+        "@com_github_neovim_go_client//nvim",
+        "@dev_lsp_go_protocol//:protocol",
+    ],
+)
+
+filegroup(
+    name = "content_dir",
 )
 
 nvim_go_test(
@@ -14,13 +25,16 @@ nvim_go_test(
     srcs = ["neovim_test.go"],
     args = [
         "--edit-file",
-        "$(location //third_party/neovim:textfile.txt)",
+        "$(location //nvim_testing/content:file)",
     ],
     data = [
-        "//third_party/neovim:textfile.txt",
-    ],
-    deps = [
-        "@com_github_neovim_go_client//msgpack/rpc",
+        "//:marker",
+        "//nvim_testing/content:file",
     ],
     embed = [":nvim_testing"],
+    deps = [
+        "@com_github_mattn_go_sqlite3//:go-sqlite3",
+        "@com_github_neovim_go_client//msgpack/rpc",
+        "@dev_lsp_go_protocol//:protocol",
+    ],
 )

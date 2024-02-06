@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/filmil/private-code-comments/bin/mkdb",
     visibility = ["//visibility:public"],
     deps = [
+        "//nvim_testing",
         "//pkg",
         "@com_github_golang_glog//:glog",
         "@com_github_mattn_go_sqlite3//:go-sqlite3",

@@ -8,6 +8,7 @@ def nvim_go_test(name, srcs, embed, deps=[], data=[], args=[]):
         deps = [
         ] + deps,
         args = [
+            # These are all flags declared in neovim.go.
             "--plugin-nvim-dir", "$(location //plugin:nvim_dir)",
             "--pcc-binary", "$(location //bin/pcc:pcc)",
             "--nvim-lua-dir", "$(location //:plugin_dir)",

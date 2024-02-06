@@ -120,15 +120,8 @@ type Server struct {
 // Finds the workspace that the file with uri URI belongs to.
 // Returns the workspace URI encoded as string, and the relative
 // path for the provided file.
-func (s *Server) FindWorkspace(uri lsp.URI) (string, string) {
-	u := string(uri)
-	for _, ws := range s.workspaceFolders {
-		if strings.HasPrefix(u, ws.URI) {
-			r := RPath(ws.URI, uri)
-			return ws.URI, r
-		}
-	}
-	return "", u
+func (s *Server) FindWorkspace(fileURI lsp.URI) (string, string) {
+	return pkg.FindWorkspace(s.workspaceFolders, fileURI)
 }
 
 func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) (*Server, error) {
@@ -193,15 +186,6 @@ func (s *Server) Shutdown() {
 	s.gotShutdown = true
 }
 
-// RPath returns a file path relative to the given workspace.
-func RPath(ws string, uri lsp.URI) string {
-	f := string(uri)
-	if !strings.HasPrefix(f, ws) {
-		panic(fmt.Sprintf("ws is not a prefix: ws=%q, file=%v", ws, uri))
-	}
-	return strings.TrimPrefix(ws, string(uri))
-}
-
 func (s *Server) DiagnosticsFn() {
 	<-s.initialized
 	glog.V(1).Infof("diagnostics up and running")
@@ -216,9 +200,9 @@ func (s *Server) DiagnosticsFn() {
 		case <-s.globalCtx.Done():
 			break
 		case uri := <-s.diagnosticQueue:
-			glog.V(1).Infof("queue tick: %q", uri.Filename())
+			glog.V(1).Infof("queue tick: %q", uri)
 			ws, rpath := s.FindWorkspace(uri)
-			anns, err := pkg.GetAnns(s.db, "" /* ws */, rpath)
+			anns, err := pkg.GetAnns(s.db, ws, rpath)
 			if err != nil {
 				glog.Errorf("error getting annotations: workspace=%v, file=%v: %v", ws, rpath, err)
 			}
@@ -275,6 +259,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 		switch req.Method() {
 		case lsp.MethodTextDocumentDidSave:
 			var p lsp.DidSaveTextDocumentParams
+			glog.V(1).Infof("didSave: Request: %v", spew.Sdump(p)) // This is expensive.
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during didSave: %v", err)
 			}
@@ -283,6 +268,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during didOpen: %v", err)
 			}
+			glog.V(1).Infof("didOpen: Request: %v", spew.Sdump(p)) // This is expensive.
 			s.count++
 			s.diagnosticQueue <- p.TextDocument.URI
 
@@ -291,13 +277,14 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during didChange: %v", err)
 			}
+			glog.V(1).Infof("didChange: Request: %v", spew.Sdump(p)) // This is expensive.
 			for _, c := range p.ContentChanges {
 				lr := NewLineRange(c.Range)
 				// Process each content change.
-				nl := strings.Count(c.Text, `\n`)
+				nl := strings.Count(c.Text, "\n")
 				delta := int32(nl - int(lr.NumLines()))
 				if delta == 0 {
-					glog.V(1).Infof("No newline count change. Skipping update.")
+					glog.V(1).Infof("No newline count change. Skipping update: lr=%+v, nl=%v", lr, nl)
 					continue
 				}
 				s.MoveAnnotations(ctx, lr, delta, p.TextDocument.URI)
@@ -324,8 +311,10 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 				reply(ctx, jsonrpc2.NewError(jsonrpc2.ErrInternal.Code, ""), err)
 				return fmt.Errorf("error during initialize: %v", err)
 			}
+			glog.V(1).Infof("Request: %v", spew.Sdump(p)) // This is expensive.
 			s.clientInfo = p.ClientInfo
 			s.workspaceFolders = append(s.workspaceFolders, p.WorkspaceFolders...)
+			glog.V(1).Infof("workspaces: %+v", s.workspaceFolders)
 			// Result
 			r := lsp.InitializeResult{
 				ServerInfo: &lsp.ServerInfo{

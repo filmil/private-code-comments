@@ -18,3 +18,8 @@ filegroup(
     name = "plugin_dir",
     srcs = ["plugin"],
 )
+
+filegroup(
+    name = "marker",
+    srcs = ["workspace.marker"],
+)
