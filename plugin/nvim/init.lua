@@ -12,8 +12,9 @@ vim.api.nvim_create_autocmd(
   {
     pattern = { "text" },
     nested = true,
-    callback = function()
-      print("In FileType: Pre")
+    callback = function(e)
+      print("In FileType: Pre: ")
+      vim.print(e)
       vim.lsp.start({
 	cmd = {
 	    os.getenv("PCC_BINARY"),
