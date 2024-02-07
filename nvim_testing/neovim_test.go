@@ -140,11 +140,13 @@ func TestGetLine(t *testing.T) {
 	)
 	// Looks like this is needed so that we don't start sending the
 	// commands before the LSP client is up and running.
-	pkg.Must1(WaitForLspAttach(context.TODO(), n, "*"))
-	pkg.Must1(n.ExecLua(
+	WaitForAutocmd(context.TODO(), "FileType", n, "text")
+	WaitForLspAttach(context.TODO(), n, "*")
+	n.ExecLua(
 		`return require('pcc').get_comment()`,
 		&result,
-		&args))
+		&args)
+	pkg.Must1(n.Command("quit"))
 	if result != "" {
 		t.Errorf("want: %v, got: %v", "", result)
 	}

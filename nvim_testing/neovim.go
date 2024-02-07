@@ -210,16 +210,16 @@ func WaitForLspAttach(ctx context.Context, cl *nvim.Nvim, pattern string) error 
 }
 
 func WaitForAutocmd(ctx context.Context, cmd string, cl *nvim.Nvim, pattern string) error {
-	//ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	//defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	p := plugin.New(cl)
 	c := make(chan struct{})
 	p.HandleAutocmd(&plugin.AutocmdOptions{
 		Event:   cmd,
 		Pattern: pattern,
-	}, func(a any) {
-		glog.Infof("WaitFor%v: %+v", cmd, a)
+	}, func(n *nvim.Nvim, args []string) {
+		fmt.Printf("WaitFor%v: %+v\n", cmd, args)
 		close(c)
 	})
 	select {

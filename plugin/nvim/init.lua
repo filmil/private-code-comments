@@ -10,8 +10,10 @@ vim.lsp.set_log_level("debug")
 vim.api.nvim_create_autocmd(
   { "FileType" },
   {
-    pattern = "text",
+    pattern = { "text" },
+    nested = true,
     callback = function()
+      print("In FileType: Pre")
       vim.lsp.start({
 	cmd = {
 	    os.getenv("PCC_BINARY"),
@@ -22,6 +24,7 @@ vim.api.nvim_create_autocmd(
 	root_dir = vim.fs.dirname(
 	  vim.fs.find(root_patterns, { upward = true })[1]),
       })
+      print("In FileType: Post")
     end
   }
 )
@@ -29,10 +32,22 @@ vim.api.nvim_create_autocmd(
 vim.api.nvim_create_autocmd(
   { "LspAttach"},
   {
-    pattern = "text",
+    pattern = { "text" },
     callback = function()
+      print("In LspAttach")
+    end,
+    nested = true,
+  }
+)
+vim.api.nvim_create_autocmd(
+  { "QuitPre"},
+  {
+    callback = function()
+      print("Got: QuitPre")
     end,
   }
 )
+
+print("boogabooga")
 
 require('pcc').setup()
