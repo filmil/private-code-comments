@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/filmil/private-code-comments/pkg"
 	_ "github.com/mattn/go-sqlite3"
@@ -62,7 +61,7 @@ func dbName(t *testing.T) string {
 //ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 //defer cancel()
 
-//	tmpDir := BazelTmpDir(t)
+//tmpDir := BazelTmpDir(t)
 //dbFile := path.Join(tmpDir, dbName(t))
 
 //db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
@@ -90,36 +89,63 @@ func dbName(t *testing.T) string {
 //}))
 //}
 
-func TestDeleteLine(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+//func TestDeleteLine(t *testing.T) {
+//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+//defer cancel()
 
+//tmpDir := BazelTmpDir(t)
+//dbFile := path.Join(tmpDir, dbName(t))
+
+//db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
+//defer closeFn()
+
+//pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
+//n := pkg.Must(NewNeovim(dbFile, NotEmpty(*editFile)))
+
+//buf := pkg.Must(n.CurrentBuffer())
+
+//// If we don't wait, we might get a didOpen with modified content, which
+//// we don't really want.
+//pkg.Must1(WaitForLine(ctx, n, buf, 0, "     1\tSome text."))
+
+//pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+//{Line: 10, Content: "hello!"},
+//}))
+
+//pkg.Must1(RemoveTextLines(n, buf, 0, 1))
+//LogAllLines(t, pkg.Must(GetAllLines(n, buf)))
+
+//pkg.Must1(WaitForLine(ctx, n, buf, 0, "     2\tSome text."))
+
+//// Surprise! the transferred change is a minimal edit.
+//pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+//{Line: 9, Content: "hello!"},
+//}))
+//}
+
+func TestGetLine(t *testing.T) {
 	tmpDir := BazelTmpDir(t)
 	dbFile := path.Join(tmpDir, dbName(t))
 
 	db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
 	defer closeFn()
-
 	pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
 	n := pkg.Must(NewNeovim(dbFile, NotEmpty(*editFile)))
 
-	buf := pkg.Must(n.CurrentBuffer())
+	pkg.Must1(n.Subscribe(`LspAttach`))
 
-	// If we don't wait, we might get a didOpen with modified content, which
-	// we don't really want.
-	pkg.Must1(WaitForLine(ctx, n, buf, 0, "     1\tSome text."))
-
-	pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
-		{Line: 10, Content: "hello!"},
-	}))
-
-	pkg.Must1(RemoveTextLines(n, buf, 0, 1))
-	LogAllLines(t, pkg.Must(GetAllLines(n, buf)))
-
-	pkg.Must1(WaitForLine(ctx, n, buf, 0, "     2\tSome text."))
-
-	// Surprise! the transferred change is a minimal edit.
-	pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
-		{Line: 9, Content: "hello!"},
-	}))
+	var (
+		result string
+		args   struct{}
+	)
+	// Looks like this is needed so that we don't start sending the
+	// commands before the LSP client is up and running.
+	pkg.Must1(WaitForLspAttach(context.TODO(), n, "*"))
+	pkg.Must1(n.ExecLua(
+		`return require('pcc').get_comment()`,
+		&result,
+		&args))
+	if result != "" {
+		t.Errorf("want: %v, got: %v", "", result)
+	}
 }

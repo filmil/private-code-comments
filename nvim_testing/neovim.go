@@ -6,13 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/filmil/private-code-comments/pkg"
+	"github.com/golang/glog"
 	"github.com/neovim/go-client/nvim"
+	"github.com/neovim/go-client/nvim/plugin"
 	lsp "go.lsp.dev/protocol"
 )
 
@@ -55,18 +58,16 @@ func BazelTmpDir(t *testing.T) string {
 //
 // The created Neovim is a hermetic instance.
 func NewNeovim(dbfile string, args ...string) (*nvim.Nvim, error) {
+	outDir := NotEmpty(BazelTmpDir(nil))
+	i := getInstance()
+	pccLogDir, err := os.MkdirTemp(outDir, fmt.Sprintf("%03d-log.dir", i))
+	logFile := path.Join(pccLogDir, "neovim-log")
 	args = append([]string{
 		"--embed",
 		"--headless",
+		fmt.Sprintf("-V4%v", logFile),
 	},
 		args...)
-	outDir := NotEmpty(BazelTmpDir(nil))
-	i := getInstance()
-	pccLog, err := os.MkdirTemp(outDir, fmt.Sprintf("%03d-pcc-", i))
-	if err != nil {
-		return nil, fmt.Errorf("could not create temp dir: %w", err)
-	}
-	neovimLog, err := os.MkdirTemp(outDir, fmt.Sprintf("%03d-neovim-", i))
 	if err != nil {
 		return nil, fmt.Errorf("could not create temp dir: %w", err)
 	}
@@ -75,12 +76,12 @@ func NewNeovim(dbfile string, args ...string) (*nvim.Nvim, error) {
 			// Set up a hermetic environment, with local dirs.
 			"USERNAME=unknown",
 			"LOGNAME=unknown",
-			fmt.Sprintf("PCC_LOG_DIR=%v", NotEmpty(pccLog)),
+			fmt.Sprintf("PCC_LOG_DIR=%v", NotEmpty(pccLogDir)),
 			fmt.Sprintf("PCC_DB=%v", NotEmpty(dbfile)),
 			fmt.Sprintf("PCC_BINARY=%v", NotEmpty(*pccBinary)),
 			fmt.Sprintf("XDG_CONFIG_HOME=%v", NotEmpty(*nvimLuaDir)),
 			// This is where neovim logs will go.
-			fmt.Sprintf("XDG_STATE_HOME=%v", NotEmpty(neovimLog)),
+			fmt.Sprintf("XDG_STATE_HOME=%v", NotEmpty(pccLogDir)),
 			fmt.Sprintf("XDG_CONFIG_DIRS=%v:%v",
 				NotEmpty(*nvimLuaDir), NotEmpty(*pluginVimDir)),
 			fmt.Sprintf("VIMRUNTIME=%v", NotEmpty(*nvimShareDir)),
@@ -90,6 +91,8 @@ func NewNeovim(dbfile string, args ...string) (*nvim.Nvim, error) {
 		nvim.ChildProcessCommand(NotEmpty(*nvimBinary)),
 		// And pass some args in.
 		nvim.ChildProcessArgs(args...),
+		nvim.ChildProcessLogf(glog.Infof),
+		nvim.ChildProcessServe(true),
 	)
 }
 
@@ -200,4 +203,29 @@ func WaitForLine(ctx context.Context, cl *nvim.Nvim, buf nvim.Buffer, line int, 
 		case <-time.After(1 * time.Second):
 		}
 	}
+}
+
+func WaitForLspAttach(ctx context.Context, cl *nvim.Nvim, pattern string) error {
+	return WaitForAutocmd(ctx, "LspAttach", cl, pattern)
+}
+
+func WaitForAutocmd(ctx context.Context, cmd string, cl *nvim.Nvim, pattern string) error {
+	//ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	//defer cancel()
+
+	p := plugin.New(cl)
+	c := make(chan struct{})
+	p.HandleAutocmd(&plugin.AutocmdOptions{
+		Event:   cmd,
+		Pattern: pattern,
+	}, func(a any) {
+		glog.Infof("WaitFor%v: %+v", cmd, a)
+		close(c)
+	})
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("WaitFor%v: timeout", cmd)
+	case <-c:
+	}
+	return nil
 }

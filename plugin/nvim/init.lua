@@ -12,7 +12,6 @@ vim.api.nvim_create_autocmd(
   {
     pattern = "text",
     callback = function()
-      print("entering txt file\n")
       vim.lsp.start({
 	cmd = {
 	    os.getenv("PCC_BINARY"),
@@ -24,6 +23,15 @@ vim.api.nvim_create_autocmd(
 	  vim.fs.find(root_patterns, { upward = true })[1]),
       })
     end
+  }
+)
+-- Let's check if this does anything useful.
+vim.api.nvim_create_autocmd(
+  { "LspAttach"},
+  {
+    pattern = "text",
+    callback = function()
+    end,
   }
 )
 

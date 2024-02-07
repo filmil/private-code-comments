@@ -23,3 +23,9 @@ if not configs.pcc then
 end
 lspconfig.pcc.setup {}
 ```
+
+# TODO
+
+* [ ] Figure out how to get a callback for plugin.HandleAutocmd.
+  * [ ] Figure out why the tests are flaky, probably related to above.
+    * [ ] LspAttach never arrives.

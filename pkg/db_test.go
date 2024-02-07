@@ -488,6 +488,24 @@ func TestTxBulkAppendAnn(t *testing.T) {
 				{Line: 11, Content: "hello3"},
 			},
 		},
+		{
+			name: "more lines to merge",
+			set: []Ann{
+				{Line: 10, Content: "hello1"},
+				{Line: 11, Content: "hello2"},
+				{Line: 12, Content: "hello3"},
+				{Line: 13, Content: "hello4"},
+			},
+			firstLine: 10,
+			lastLine:  12,
+			delta:     -2,
+			expected: []Ann{
+				{Line: 10, Content: "hello1\n--\nhello2\n--\nhello3"},
+				{Line: 11, Content: "hello4"},
+			},
+		},
+		// TODO: filmil- this will need more test cases to be trustworthy.
+		// But, we're on it.
 	}
 	for _, test := range tests {
 		test := test
