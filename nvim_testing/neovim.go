@@ -39,6 +39,18 @@ func NotEmpty(s string) string {
 	return s
 }
 
+func BazelTmpDir(t *testing.T) string {
+	var ret string
+	ret = os.Getenv("TEST_UNDECLARED_OUTPUTS_DIR")
+	if ret == "" {
+		if t == nil {
+			panic("can not generate a tmpdir without bazel or test")
+		}
+		ret = t.TempDir()
+	}
+	return ret
+}
+
 // NewNeovim creates a new Neovim child process for testing.
 //
 // The created Neovim is a hermetic instance.
@@ -48,7 +60,7 @@ func NewNeovim(dbfile string, args ...string) (*nvim.Nvim, error) {
 		"--headless",
 	},
 		args...)
-	outDir := NotEmpty(os.Getenv("TEST_UNDECLARED_OUTPUTS_DIR"))
+	outDir := NotEmpty(BazelTmpDir(nil))
 	i := getInstance()
 	pccLog, err := os.MkdirTemp(outDir, fmt.Sprintf("%03d-pcc-", i))
 	if err != nil {

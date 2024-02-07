@@ -233,19 +233,34 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32,
 		glog.Fatalf("delta==0: this should not happen")
 	}
 
+	// When lines are inserted, we increment the line number of all annotations from the
+	// line after the insert line by the number of inserted lines.
+	ws, rpath := s.FindWorkspace(uri)
+
 	if delta > 0 {
-		// When lines are inserted, we increment the line number of all annotations from the
-		// line after the insert line by the number of inserted lines.
-		ws, rpath := s.FindWorkspace(uri)
 		if err := pkg.BulkMoveAnn(s.db, ws, rpath, lr.Start, delta); err != nil {
 			return fmt.Errorf("MoveAnnotations: %w", err)
 		}
 	}
 	if delta < 0 {
 		// Deletion is complicated.
-		glog.Errorf("delta=%d<0: TBD", delta)
+		// (1) The lines below the delete are moved up by delta.
+		// (2) The lines affected by the delete, are merged in sequence, and
+		// attached to the first line. As a transaction.
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("could not begin tx")
+		}
+		err = pkg.TxBulkAppendAnn(tx, ws, rpath, lr.Start, lr.End, delta)
+		if err != nil {
+			return fmt.Errorf("MoveAnnotations: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			glog.Errorf("could not commit: %v", err)
+		}
 	}
 
+	glog.V(1).Info("refresh diagnostics.")
 	// Refresh diagnostics
 	s.diagnosticQueue <- uri
 	return nil

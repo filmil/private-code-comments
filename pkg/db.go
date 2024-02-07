@@ -2,6 +2,7 @@
 package pkg
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -48,6 +49,26 @@ const (
 
 		COMMIT;`
 )
+
+func Must1(err error) {
+	if err != nil {
+		panic(fmt.Sprintf("Must1: error: %v", err))
+	}
+}
+
+func Must[T any](v T, err error) T {
+	if err != nil {
+		panic(fmt.Sprintf("Must error: %v", err))
+	}
+	return v
+}
+
+func Must3[T any, V any](t T, v V, err error) (T, V) {
+	if err != nil {
+		panic(fmt.Sprintf("Must3: error: %v", err))
+	}
+	return t, v
+}
 
 // CreateDBFile creates an empty database file at the given name.
 // Returns true if the database needs to be initialized.
@@ -121,13 +142,9 @@ func CreateSchema(db *sql.DB) error {
 			);
 
 		COMMIT;`
-	_, err := db.Exec(createStatementStr)
-	if err != nil {
-		return fmt.Errorf("could not create db: %w", err)
-	}
+	Must(db.Exec(createStatementStr))
 
-	// TODO: fmil - Turn this off later.
-	return InsertAnn(db, "", "/test.txt", 0, "This is a test entry.")
+	return nil
 }
 
 // InsertAnn inserts an annotation into the database.
@@ -139,29 +156,14 @@ func CreateSchema(db *sql.DB) error {
 //     for ws="file://dir", and file URI
 //     "file://dir/file.txt", then path should be "/file.txt".
 func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("InsertAnn: transaction begin: %w", err)
-	}
-
-	r, err := db.Exec(
-		`INSERT INTO Annotations(Content) VALUES (?);`, text)
-	if err != nil {
-		return fmt.Errorf("InsertAnn: exec1: %w", err)
-	}
-	id, err := r.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("InsertAnn: lastinsertid: %w", err)
-	}
-
+	tx := Must(db.Begin())
+	r := Must(db.Exec(`INSERT INTO Annotations(Content) VALUES (?);`, text))
+	id := Must(r.LastInsertId())
 	const insertAnnLocStmtStr = `
 		INSERT INTO AnnotationLocations(Workspace, Path, Line, AnnId)
 			VALUES (?, ?, ?, ?)
 		;`
-	r, err = db.Exec(insertAnnLocStmtStr, workspace, path, line, id)
-	if err != nil {
-		return fmt.Errorf("InsertAnn: exec2: %w", err)
-	}
+	r = Must(db.Exec(insertAnnLocStmtStr, workspace, path, line, id))
 	return tx.Commit()
 }
 
@@ -190,6 +192,7 @@ func DeleteAnn(db *sql.DB, workspace, path string, line uint32) error {
 	return nil
 }
 
+// MoveAnn moves a single annotation from a file location to another location in a possibly different file.
 func MoveAnn(db *sql.DB, workspace, path string, line uint32, newPath string, newLine uint32) error {
 	r, err := db.Exec(`
 		UPDATE		AnnotationLocations
@@ -213,11 +216,29 @@ func MoveAnn(db *sql.DB, workspace, path string, line uint32, newPath string, ne
 	return nil
 }
 
-// BulkMoveAnn moes annotation locations starting from given line by 'delta'.
+// BulkMoveAnn moves annotation locations starting from given line to EOF by 'delta'.
 //
 // Note: firstLine is zero-indexed.
 func BulkMoveAnn(db *sql.DB, workspace, path string, firstLine uint32, delta int32) error {
-	_, err := db.Exec(`
+	tx, err := db.BeginTx(context.TODO(), nil)
+	if err != nil {
+		return fmt.Errorf("could not create TX: %v", err)
+	}
+	err = TxBulkMoveAnn(tx, workspace, path, firstLine, delta)
+	if err != nil {
+		return fmt.Errorf("could not schedule TX: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf(
+			"BulkMoveAnn: could not move annotations: ws=%q, file=%q, startLine=%v, delta=%v:\n\t%v",
+			workspace, path, firstLine, delta, err)
+	}
+	return nil
+}
+
+// Schedules a BulkMoveAnn into a transaction.
+func TxBulkMoveAnn(tx *sql.Tx, workspace, path string, firstLine uint32, delta int32) error {
+	_, err := tx.Exec(`
 		UPDATE			AnnotationLocations
 		SET				Line = Line + ?
 		WHERE			Workspace = ?
@@ -231,6 +252,57 @@ func BulkMoveAnn(db *sql.DB, workspace, path string, firstLine uint32, delta int
 			"BulkMoveAnn: could not move annotations: ws=%q, file=%q, startLine=%v, delta=%v:\n\t%v",
 			workspace, path, firstLine, delta, err)
 	}
+	return nil
+}
+
+func addConcat(tx *sql.Tx, workspace, path string, firstline, lastline uint32) (sql.Result, error) {
+	r := Must(tx.Exec(`
+        -- Insert the concatenation of content of all affected lines to
+        -- the first line.
+        -- Save the generated ID into r above.
+        INSERT OR IGNORE INTO Annotations(Content)
+            SELECT group_concat(Content, ?) -- check how to use a separator
+            FROM    AnnotationLocations
+            INNER JOIN  Annotations
+            ON  AnnotationLocations.AnnId = Annotations.ID
+            WHERE AnnotationLocations.Workspace = ?     -- workspace
+                    AND
+                  AnnotationLocations.Path = ?          -- path
+                    AND
+                  AnnotationLocations.Line >= ?         -- firstline
+                    AND
+                  AnnotationLocations.Line <= ?          -- lastline
+            ORDER BY AnnotationLocations.Line
+        ;`, "\n--\n", workspace, path, firstline, lastline))
+	return r, nil
+}
+
+// TxBulkAppendAnn schedules an append in order of all the annotations on the file path between firstline
+// and lastline in the appropriate sequence.
+func TxBulkAppendAnn(tx *sql.Tx, workspace, path string, firstline, lastline uint32, delta int32) error {
+	r := Must(addConcat(tx, workspace, path, firstline, lastline))
+	annID := Must(r.LastInsertId())
+
+	Must(tx.Exec(`
+        -- delete the notes from the deleted section.
+        -- These are already replaced by the concatenation above.
+        -- The annotation contents are deleted through cascade.
+        DELETE FROM AnnotationLocations
+        WHERE AnnotationLocations.Workspace = ? -- workspace
+                AND
+              AnnotationLocations.Path = ?
+                AND
+              AnnotationLocations.Line >= ? -- firstline
+                AND
+              AnnotationLocations.Line <= ? -- lastline
+        ;`, workspace, path, firstline, lastline))
+
+	Must(tx.Exec(`
+        INSERT OR REPLACE INTO AnnotationLocations(Workspace, Path, Line, AnnId)
+        VALUES (?, ?, ?, ?)
+        ;`, workspace, path, firstline, annID))
+
+	Must1(TxBulkMoveAnn(tx, workspace, path, lastline, delta))
 	return nil
 }
 
@@ -311,6 +383,28 @@ func GetAnn(db *sql.DB, workspace, path string, line uint32) (string, error) {
 type Ann struct {
 	Line    uint32
 	Content string
+}
+
+func GetRawAnns(db *sql.DB) ([]Ann, error) {
+	ret := []Ann{}
+	r, err := db.Query(`
+		SELECT		Id, Content
+		FROM		Annotations
+		ORDER BY	Id
+	;`)
+	if err != nil {
+		return nil, fmt.Errorf("could not query: %w", err)
+	}
+
+	for r.Next() {
+		var ann Ann
+		if err := r.Scan(&ann.Line, &ann.Content); err != nil {
+			return nil, fmt.Errorf("could not scan: %w", err)
+		}
+		ret = append(ret, ann)
+	}
+	glog.V(2).Infof("GetRawAnns: %+v", ret)
+	return ret, err
 }
 
 // GetAnns returns all annotations for the given path in the workspace.

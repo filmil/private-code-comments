@@ -21,26 +21,6 @@ var (
 	ws       lsp.URI
 )
 
-func must1(err error) {
-	if err != nil {
-		panic(fmt.Sprintf("error: %v", err))
-	}
-}
-
-func must[T any](v T, err error) T {
-	if err != nil {
-		panic(fmt.Sprintf("error: %v", err))
-	}
-	return v
-}
-
-func must3[T any, V any](t T, v V, err error) (T, V) {
-	if err != nil {
-		panic(fmt.Sprintf("error: %v", err))
-	}
-	return t, v
-}
-
 func init() {
 	wsx, err := os.Getwd()
 	if err != nil {
@@ -50,8 +30,8 @@ func init() {
 }
 
 func TestOne(t *testing.T) {
-	tmpDir := t.TempDir()
-	dbFile := path.Join(tmpDir, "db.sqlite")
+	tmpDir := BazelTmpDir(t)
+	dbFile := path.Join(tmpDir, dbName(t))
 
 	e := NotEmpty(*editFile)
 	n, err := NewNeovim(NotEmpty(dbFile), e)
@@ -73,34 +53,39 @@ var withDetails = map[string]interface{}{
 
 const testFilename = "/nvim_testing/content/textfile.txt"
 
+func dbName(t *testing.T) string {
+	t.Helper()
+	return fmt.Sprintf("%v.db.sqlite", t.Name())
+}
+
 //func TestInsertLine(t *testing.T) {
 //ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 //defer cancel()
 
-//tmpDir := t.TempDir()
-//dbFile := path.Join(tmpDir, "db.sqlite")
+//	tmpDir := BazelTmpDir(t)
+//dbFile := path.Join(tmpDir, dbName(t))
 
-//db, closeFn := must3(RunDBQuery(dbFile, ``))
+//db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
 //defer closeFn()
 
-//must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
-//n := must(NewNeovim(dbFile, NotEmpty(*editFile)))
+//pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
+//n := pkg.Must(NewNeovim(dbFile, NotEmpty(*editFile)))
 
-//buf := must(n.CurrentBuffer())
+//buf := pkg.Must(n.CurrentBuffer())
 
-//// Not sure why this must be done. But if it isn't, then the write won't
+//// Not sure why this pkg.Must be done. But if it isn't, then the write won't
 //// get seen by nvim.
-//must(pkg.GetAnns(db, string(ws), testFilename))
+//pkg.Must(pkg.GetAnns(db, string(ws), testFilename))
 
-//must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+//pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
 //{Line: 10, Content: "hello!"},
 //}))
 
 //// Insert some text at line 1, see what happened.
-//must1(InsertText(n, buf, 0, "add new at 1: hello\n"))
+//pkg.Must1(InsertText(n, buf, 0, "add new at 1: hello\n"))
 
-//LogAllLines(t, must(GetAllLines(n, buf)))
-//must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+//LogAllLines(t, pkg.Must(GetAllLines(n, buf)))
+//pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
 //{Line: 11, Content: "hello!"},
 //}))
 //}
@@ -109,32 +94,32 @@ func TestDeleteLine(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	tmpDir := t.TempDir()
-	dbFile := path.Join(tmpDir, "db.sqlite")
+	tmpDir := BazelTmpDir(t)
+	dbFile := path.Join(tmpDir, dbName(t))
 
-	db, closeFn := must3(RunDBQuery(dbFile, ``))
+	db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
 	defer closeFn()
 
-	must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
-	n := must(NewNeovim(dbFile, NotEmpty(*editFile)))
+	pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
+	n := pkg.Must(NewNeovim(dbFile, NotEmpty(*editFile)))
 
-	buf := must(n.CurrentBuffer())
+	buf := pkg.Must(n.CurrentBuffer())
 
 	// If we don't wait, we might get a didOpen with modified content, which
 	// we don't really want.
-	must1(WaitForLine(ctx, n, buf, 0, "     1\tSome text."))
+	pkg.Must1(WaitForLine(ctx, n, buf, 0, "     1\tSome text."))
 
-	must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+	pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
 		{Line: 10, Content: "hello!"},
 	}))
 
-	must1(RemoveTextLines(n, buf, 0, 1))
-	LogAllLines(t, must(GetAllLines(n, buf)))
+	pkg.Must1(RemoveTextLines(n, buf, 0, 1))
+	LogAllLines(t, pkg.Must(GetAllLines(n, buf)))
 
-	must1(WaitForLine(ctx, n, buf, 0, "     2\tSome text."))
+	pkg.Must1(WaitForLine(ctx, n, buf, 0, "     2\tSome text."))
 
 	// Surprise! the transferred change is a minimal edit.
-	must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+	pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
 		{Line: 9, Content: "hello!"},
 	}))
 }
