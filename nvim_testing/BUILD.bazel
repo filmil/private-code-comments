@@ -1,6 +1,8 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load(":macros.bzl", "nvim_go_test")
 
+package(default_visibility = ["//visibility:public"])
+
 go_library(
     name = "nvim_testing",
     srcs = [

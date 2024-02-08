@@ -15,7 +15,6 @@ import (
 	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
 	"github.com/neovim/go-client/nvim"
-	"github.com/neovim/go-client/nvim/plugin"
 	lsp "go.lsp.dev/protocol"
 )
 
@@ -65,7 +64,7 @@ func NewNeovim(dbfile string, args ...string) (*nvim.Nvim, error) {
 	args = append([]string{
 		"--embed",
 		"--headless",
-		fmt.Sprintf("-V4%v", logFile),
+		fmt.Sprintf("-V10%v", logFile),
 	},
 		args...)
 	if err != nil {
@@ -205,27 +204,79 @@ func WaitForLine(ctx context.Context, cl *nvim.Nvim, buf nvim.Buffer, line int, 
 	}
 }
 
-func WaitForLspAttach(ctx context.Context, cl *nvim.Nvim, pattern string) error {
-	return WaitForAutocmd(ctx, "LspAttach", cl, pattern)
-}
-
-func WaitForAutocmd(ctx context.Context, cmd string, cl *nvim.Nvim, pattern string) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	p := plugin.New(cl)
-	c := make(chan struct{})
-	p.HandleAutocmd(&plugin.AutocmdOptions{
-		Event:   cmd,
-		Pattern: pattern,
-	}, func(n *nvim.Nvim, args []string) {
-		fmt.Printf("WaitFor%v: %+v\n", cmd, args)
-		close(c)
-	})
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("WaitFor%v: timeout", cmd)
-	case <-c:
+// GetLspAttachEvent returns a channel that is closed when a LspAttach event
+// happens.  This is the only go-client example for handling this that I am aware of.
+// For details, see: https://github.com/neovim/neovim/discussions/27371
+//
+// GetLspAttachEvent configures the Neovim client `cl` to close the returned channel
+// when it gets a `LspAttach` event.  It seems that there is no automated way to connect
+// nvim events such that the notifications to a go client happen automatically. Instead,
+// we configure it ourselves.
+//
+// Other subtleties are that you must ensure that you get the channel here strictly
+// *before* sending any commands that could result in this notification. Otherwise,
+// you can sometimes *miss* that event.  For example, if you load a file from command
+// line in Neovim, you might miss most, or all of the events emitted as a result of
+// opening that file.
+//
+// Args:
+//   - cl: a neovim client.  Get one from `nvim.NewChildProcess`, for example.
+//   - pattern: the autocmd pattern, for example, "text", or "*".
+//
+// Returns: a channel that gets closed when the event is received.
+func GetLspAttachEvent(cl *nvim.Nvim, pattern string) (chan struct{}, error) {
+	const eName = `LspAttach`
+	// The name in Subscribe and Unsubscribe
+	if err := cl.Subscribe(eName); err != nil {
+		return nil, fmt.Errorf("failed to subscribe to event: %w", err)
 	}
-	return nil
+	var (
+		// The returned value is the ID of the registerd autocmd.
+		id   int
+		args struct{}
+	)
+	if err := cl.ExecLua(fmt.Sprintf(`
+        -- without a return here, you will not get your code executed apparently.
+        return vim.api.nvim_create_autocmd(
+            '%s', 
+            {
+                callback = function(e)
+                    -- You'd expect to use output of vim.nvim_get_api_info()[1]
+                    -- here, but I could not get that function to return something
+                    -- other than nil.
+                    --
+                    -- The second parameter here is the RPC method name which
+                    -- is the argument of Subscribe above, and Unsubscribe below.
+                    vim.rpcnotify(0, '%s')
+                end,
+                -- For file.txt, the pattern must apparently be either '*' or
+                -- 'text', else you will not get a notification it seems.
+                pattern = { '%s' },
+                nested = true,
+            }
+        )
+    `, eName, eName, pattern), &id, &args); err != nil {
+		return nil, fmt.Errorf("could not ")
+	}
+
+	c := make(chan struct{})
+	err := cl.RegisterHandler(eName, func(cl *nvim.Nvim, a any) error {
+		defer close(c)
+		// This is the same name as in the call to `cl.Subscribe`.
+		cl.Unsubscribe(eName)
+		var (
+			// A nil result serializes to interface{}
+			result interface{}
+			args   struct{}
+		)
+		err := cl.ExecLua(fmt.Sprintf(`return vim.api.nvim_del_autocmd(%d)`, id), &result, &args)
+		if err != nil {
+			return fmt.Errorf("could not delete autocmd: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not register handler: %w", err)
+	}
+	return c, nil
 }

@@ -1,6 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_test")
 
-def nvim_go_test(name, srcs, embed, deps=[], data=[], args=[]):
+def nvim_go_test(name, srcs, embed, deps=[], data=[], args=[], size="medium"):
     go_test(
         name = name,
         embed = embed,
@@ -29,5 +29,6 @@ def nvim_go_test(name, srcs, embed, deps=[], data=[], args=[]):
         # Run the test in the top level runfiles dir. This is *not* the
         # default go test behavior.
         rundir = ".",
+        size = size,
     )
 

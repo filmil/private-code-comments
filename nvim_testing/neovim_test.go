@@ -1,7 +1,6 @@
 package nvim_testing
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -130,22 +129,25 @@ func TestGetLine(t *testing.T) {
 	db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
 	defer closeFn()
 	pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
-	n := pkg.Must(NewNeovim(dbFile, NotEmpty(*editFile)))
+	n := pkg.Must(NewNeovim(dbFile))
 
-	pkg.Must1(n.Subscribe(`LspAttach`))
+	e := pkg.Must(GetLspAttachEvent(n, "*"))
+
+	// Must edit the file *after* the event setup is done.
+	pkg.Must1(n.Command(fmt.Sprintf("edit %s", *editFile)))
+
+	// Must wait strictly *after* an event that will produce the event.
+	<-e
 
 	var (
 		result string
 		args   struct{}
 	)
-	// Looks like this is needed so that we don't start sending the
-	// commands before the LSP client is up and running.
-	WaitForAutocmd(context.TODO(), "FileType", n, "text")
-	//WaitForLspAttach(context.TODO(), n, "*")
-	n.ExecLua(
+
+	pkg.Must1(n.ExecLua(
 		`return require('pcc').get_comment()`,
 		&result,
-		&args)
+		&args))
 	pkg.Must1(n.Command("quit"))
 	if result != "" {
 		t.Errorf("want: %v, got: %v", "", result)
