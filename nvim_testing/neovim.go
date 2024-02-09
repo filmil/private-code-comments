@@ -204,12 +204,12 @@ func WaitForLine(ctx context.Context, cl *nvim.Nvim, buf nvim.Buffer, line int, 
 	}
 }
 
-// GetLspAttachEvent returns a channel that is closed when a LspAttach event
+// GetEventChannel returns a channel that is closed when a LspAttach event
 // happens.  This is the only go-client example for handling this that I am aware of.
 // For details, see: https://github.com/neovim/neovim/discussions/27371
 //
-// GetLspAttachEvent configures the Neovim client `cl` to close the returned channel
-// when it gets a `LspAttach` event.  It seems that there is no automated way to connect
+// GetEventChannel configures the Neovim client `cl` to close the returned channel
+// when it gets the specified event.  It seems that there is no automated way to connect
 // nvim events such that the notifications to a go client happen automatically. Instead,
 // we configure it ourselves.
 //
@@ -220,14 +220,15 @@ func WaitForLine(ctx context.Context, cl *nvim.Nvim, buf nvim.Buffer, line int, 
 // opening that file.
 //
 // Args:
+//   - eventName: the name of the event to get a notification for, such as
+//     'FileType'.
 //   - cl: a neovim client.  Get one from `nvim.NewChildProcess`, for example.
 //   - pattern: the autocmd pattern, for example, "text", or "*".
 //
 // Returns: a channel that gets closed when the event is received.
-func GetLspAttachEvent(cl *nvim.Nvim, pattern string) (chan struct{}, error) {
-	const eName = `LspAttach`
+func GetEventChannel(eventName string, cl *nvim.Nvim, pattern string) (chan struct{}, error) {
 	// The name in Subscribe and Unsubscribe
-	if err := cl.Subscribe(eName); err != nil {
+	if err := cl.Subscribe(eventName); err != nil {
 		return nil, fmt.Errorf("failed to subscribe to event: %w", err)
 	}
 	var (
@@ -255,15 +256,15 @@ func GetLspAttachEvent(cl *nvim.Nvim, pattern string) (chan struct{}, error) {
                 nested = true,
             }
         )
-    `, eName, eName, pattern), &id, &args); err != nil {
+    `, eventName, eventName, pattern), &id, &args); err != nil {
 		return nil, fmt.Errorf("could not ")
 	}
 
 	c := make(chan struct{})
-	err := cl.RegisterHandler(eName, func(cl *nvim.Nvim, a any) error {
+	err := cl.RegisterHandler(eventName, func(cl *nvim.Nvim, a any) error {
 		defer close(c)
 		// This is the same name as in the call to `cl.Subscribe`.
-		cl.Unsubscribe(eName)
+		cl.Unsubscribe(eventName)
 		var (
 			// A nil result serializes to interface{}
 			result interface{}
@@ -279,4 +280,15 @@ func GetLspAttachEvent(cl *nvim.Nvim, pattern string) (chan struct{}, error) {
 		return nil, fmt.Errorf("could not register handler: %w", err)
 	}
 	return c, nil
+}
+
+// GetLspAttachEvent returns a channel that gets closed on receipt of a `LspAttach`
+// event.
+func GetLspAttachEvent(cl *nvim.Nvim, pattern string) (chan struct{}, error) {
+	const eName = `LspAttach`
+	return GetEventChannel(eName, cl, pattern)
+}
+
+func EditFile(cl *nvim.Nvim, filename string) error {
+	return cl.Command(fmt.Sprintf("edit %s", filename))
 }
