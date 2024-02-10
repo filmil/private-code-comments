@@ -1,0 +1,5 @@
+
+sh_binary(
+    name = "view_logs",
+    srcs = [ "view_logs.sh" ],
+)

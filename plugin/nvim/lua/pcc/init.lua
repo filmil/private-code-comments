@@ -145,7 +145,7 @@ local default_opts = {
 
     file_patterns = { "text" },
 
-    log_verbosity = 4,
+    log_verbosity = 0,
 
     annotate_command = "<leader>cr",
     delete_command = "<leader>cd",
