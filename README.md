@@ -59,9 +59,9 @@ require('pcc').setup({
   -- Set to wherever you installed `pcc`.
   pcc_binary = os.getenv("HOME") .. "/local/bin/pcc", 
   -- Set to where you want your annotation database to be.
-  db = "/home/fmil/tmp/pcc/db/db.sqlite",
+  db = os.getenv("HOME) .. "/tmp/pcc/db/db.sqlite",
   -- Set to where you want your logs to be written.
-  log_dir = "/home/fmil/tmp/pcc/logs",
+  log_dir = os.getenv("HOME) .. "/tmp/pcc/logs",
   -- Set the file patters you wish to install this server to.
   file_patterns = { "text" }
 
