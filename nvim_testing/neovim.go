@@ -323,11 +323,21 @@ func GetComment(cl *nvim.Nvim) (string, error) {
 	if err := cl.ExecLua(`return require('pcc').get_comment()`, &r, &args); err != nil {
 		return "", fmt.Errorf("got error instead of result: %w", err)
 	}
-	s, ok := r.(string)
+	s, ok := r.([]interface{})
 	if !ok {
-		return "", fmt.Errorf("got something that is not string: %v", r)
+		return "", fmt.Errorf("got something that is not an array: %v, %T", r, r)
 	}
-	return s, nil
+
+	var ls []string
+	for _, l := range s {
+		o, ok := l.(string)
+		if !ok {
+			return "", fmt.Errorf("got something that is not string: %q", o)
+		}
+		ls = append(ls, o)
+
+	}
+	return strings.Join(ls, "\n"), nil
 }
 
 // SetComment sets a comment for current line of text.
@@ -336,7 +346,13 @@ func SetComment(cl *nvim.Nvim, content string) error {
 		r    interface{}
 		args interface{}
 	)
-	err := cl.ExecLua(fmt.Sprintf(`return require('pcc').set_comment(%q)`, content), &r, &args)
+	var cs []string
+	for _, s := range strings.Split(content, "\n") {
+		cs = append(cs, fmt.Sprintf("%v", s))
+	}
+	j := strings.Join(cs, ",")
+
+	err := cl.ExecLua(fmt.Sprintf(`return require('pcc').set_comment({%q})`, j), &r, &args)
 	if err != nil {
 		return fmt.Errorf("got error instead of set comments: %w", err)
 	}

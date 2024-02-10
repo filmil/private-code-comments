@@ -8,12 +8,12 @@ type PccGet struct {
 }
 
 type PccGetResp struct {
-	Content string `json:"content"`
+	Content []string `json:"content"`
 }
 
 type PccSet struct {
 	PccGet
-	Content string `json:"content"`
+	Content []string `json:"content"`
 }
 
 type PccSetRes struct{}

@@ -296,7 +296,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 				return fmt.Errorf("could not get annotation: %+v: %w", p, err)
 			}
 			r := pkg.PccGetResp{
-				Content: ann,
+				Content: strings.Split(ann, "\n"),
 			}
 			glog.V(1).Infof("$/pcc/get: reply: %v", spew.Sdump(r)) // This is expensive.
 			return reply(ctx, r, nil)
@@ -308,14 +308,15 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			}
 			glog.V(1).Infof("$/pcc/set: Request: %v", spew.Sdump(p)) // This is expensive.
 			ws, rpath := pkg.FindWorkspace(s.workspaceFolders, p.File)
-			if p.Content == "" {
+			content := strings.Join(p.Content, "\n")
+			if content == "" {
 				if err := pkg.DeleteAnn(s.db, ws, rpath, p.Line); err != nil {
 					glog.V(1).Infof("$/pcc/set: OOK!")
 					return fmt.Errorf("could not delete: %+v: %w", p, err)
 				}
 			} else {
 				// Update.
-				if err := pkg.InsertAnn(s.db, ws, rpath, p.Line, p.Content); err != nil {
+				if err := pkg.InsertAnn(s.db, ws, rpath, p.Line, content); err != nil {
 					return fmt.Errorf("could not upsert: %+v: %w", p, err)
 				}
 			}

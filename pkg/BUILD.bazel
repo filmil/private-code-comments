@@ -26,4 +26,5 @@ go_test(
         "@com_github_mattn_go_sqlite3//:go-sqlite3",
         "@dev_lsp_go_protocol//:protocol",
     ],
+    size = "small",
 )
