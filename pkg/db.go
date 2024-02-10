@@ -162,9 +162,9 @@ func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) err
 	const insertAnnLocStmtStr = `
 		INSERT INTO AnnotationLocations(Workspace, Path, Line, AnnId) VALUES (?, ?, ?, ?)
         ON CONFLICT(Workspace, Path, Line)
-        DO UPDATE SET AnnId=AnnId
+        DO UPDATE SET AnnId=?
 		;`
-	r = Must(db.Exec(insertAnnLocStmtStr, workspace, path, line, id))
+	r = Must(db.Exec(insertAnnLocStmtStr, workspace, path, line, id, id))
 	return tx.Commit()
 }
 
