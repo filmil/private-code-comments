@@ -31,10 +31,13 @@ remains available to you for as long as you want.
 This was not built in a vacuum.  Here are some similar projects that I used
 as inspiration.
 
-* https://github.com/masukomi/private\_comments
+* https://github.com/masukomi/private_comments
 * https://github.com/winter-again/annotate.nvim
 
-The above project however are not using the LSP infrastructure, so they end up
+There is at least one other project that I remember poring over, but I forgot
+what that was.
+
+The above projects however are not using the LSP infrastructure, so they end up
 needing to reinvent the presentation of the annotations.
 
 I also owe gratitude to my colleague Chris, for inspiring me to write this
