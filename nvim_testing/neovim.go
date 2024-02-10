@@ -314,6 +314,9 @@ func EditFile(cl *nvim.Nvim, filename string) error {
 // GetComment gets a comment for current line of text.
 func GetComment(cl *nvim.Nvim) (string, error) {
 	var (
+		// Parsing into an interface{} and then type asserting is a nice way to
+		// avoid extra confusing deserialization errors. Who knows what you will
+		// receive from Neovim!
 		r    interface{}
 		args interface{}
 	)

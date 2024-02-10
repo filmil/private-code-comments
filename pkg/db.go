@@ -187,7 +187,8 @@ func DeleteAnn(db *sql.DB, workspace, path string, line uint32) error {
 	if err != nil {
 		return fmt.Errorf("could not get rows affected: workspace=%v, path=%v, line=%v", workspace, path, line)
 	}
-	if ra != 1 {
+	// It is allowed for an annotation *not* to exist when requested a delete.
+	if ra > 1 {
 		return fmt.Errorf("should affect exactly one row, but affected: %v", ra)
 	}
 	return nil
