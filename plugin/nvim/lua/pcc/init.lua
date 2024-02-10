@@ -134,15 +134,23 @@ local default_opts = {
     annot_sign_hl = 'Comment',
     annot_sign_hl_current = 'FloatBorder',
     annot_win_width = 25,
-    annot_win_padding = 2
+    annot_win_padding = 2,
+
+    log_dir = os.getenv("PCC_LOG_DIR"),
+    pcc_binary = os.getenv("PCC_BINARY"),
+    db = os.getenv("PCC_DB"),
+
+    root_patterns = {
+        ".git",
+        -- From //nvim_testing/content:workspace.marker
+        "workspace.marker",
+    },
+
+    log_verbosity = 4,
 }
 
 function M.setup(opts)
     M.config = vim.tbl_deep_extend('force', default_opts, opts or {})
-    -- From //nvim_testing/content:workspace.marker
-    local root_patterns = { "workspace.marker" }
-
-    local log_cmd = "--log_dir=" .. os.getenv("PCC_LOG_DIR")
 
 
     vim.lsp.set_log_level("debug")
@@ -153,16 +161,16 @@ function M.setup(opts)
         nested = true,
         callback = function()
           vim.lsp.start({
-        cmd = {
-            os.getenv("PCC_BINARY"),
-            log_cmd,
-            "--v=4",
-            "--db=" .. os.getenv("PCC_DB"),
-        },
-        root_dir = vim.fs.dirname(
-          vim.fs.find(root_patterns, { upward = true })[1]),
-
-        handlers = require('pcc').handlers(),
+            cmd = {
+                M.config.pcc_binary,
+                "--log_dir=" .. M.config.log_dir,
+                "--v=" .. string.format("%d", M.config.log_verbosity),
+                "--db=" .. M.config.db,
+            },
+            root_dir = vim.fs.dirname(
+              vim.fs.find(M.config.root_patterns,
+              { upward = true })[1]),
+            handlers = require('pcc').handlers(),
           })
         end
       }

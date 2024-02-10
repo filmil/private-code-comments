@@ -17,6 +17,7 @@ go_library(
 
 go_binary(
     name = "pcc",
+    static = "on",
     embed = [":pcc_lib"],
     visibility = ["//visibility:public"],
 )
