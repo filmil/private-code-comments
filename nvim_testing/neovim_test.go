@@ -136,34 +136,26 @@ func TestDeleteLine(t *testing.T) {
 	}))
 }
 
-//func TestGetLine(t *testing.T) {
-//tmpDir := BazelTmpDir(t)
-//dbFile := path.Join(tmpDir, dbName(t))
+func TestGetLine(t *testing.T) {
+	tmpDir := BazelTmpDir(t)
+	dbFile := path.Join(tmpDir, dbName(t))
 
-//db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
-//defer closeFn()
-//pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
-//n := pkg.Must(NewNeovim(dbFile))
+	db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
+	defer closeFn()
+	pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
+	n := pkg.Must(NewNeovim(dbFile))
 
-//e := pkg.Must(GetLspAttachEvent(n, "*"))
+	e := pkg.Must(GetLspAttachEvent(n, "*"))
 
-//// Must edit the file *after* the event setup is done.
-//pkg.Must1(n.Command(fmt.Sprintf("edit %s", *editFile)))
+	// Must edit the file *after* the event setup is done.
+	pkg.Must1(n.Command(fmt.Sprintf("edit %s", *editFile)))
 
-//// Must wait strictly *after* an event that will produce the event.
-//<-e
+	// Must wait strictly *after* an event that will produce the event.
+	<-e
 
-//var (
-//result string
-//args   struct{}
-//)
+	pkg.Must1(SetComment(n, "Hello note!"))
 
-//pkg.Must1(n.ExecLua(
-//`return require('pcc').get_comment()`,
-//&result,
-//&args))
-//pkg.Must1(n.Command("quit"))
-//if result != "" {
-//t.Errorf("want: %v, got: %v", "", result)
-//}
-//}
+	pkg.Must1(WaitForAnn(context.TODO(), n, "Hello note!"))
+
+	n.Command("quit")
+}

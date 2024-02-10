@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "db.go",
         "files.go",
+        "model.go"
     ],
     importpath = "github.com/filmil/private-code-comments/pkg",
     visibility = ["//visibility:public"],

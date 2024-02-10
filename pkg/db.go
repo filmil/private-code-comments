@@ -160,15 +160,16 @@ func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) err
 	r := Must(db.Exec(`INSERT INTO Annotations(Content) VALUES (?);`, text))
 	id := Must(r.LastInsertId())
 	const insertAnnLocStmtStr = `
-		INSERT INTO AnnotationLocations(Workspace, Path, Line, AnnId)
-			VALUES (?, ?, ?, ?)
+		INSERT INTO AnnotationLocations(Workspace, Path, Line, AnnId) VALUES (?, ?, ?, ?)
+        ON CONFLICT(Workspace, Path, Line)
+        DO UPDATE SET AnnId=AnnId
 		;`
 	r = Must(db.Exec(insertAnnLocStmtStr, workspace, path, line, id))
 	return tx.Commit()
 }
 
 // DeleteAnn deletes an annotation for the specific workspace, path and line.
-// The annotation must exist
+// The annotation does not need to exist.
 func DeleteAnn(db *sql.DB, workspace, path string, line uint32) error {
 	r, err := db.Exec(`
 		-- The Annotations table entry is deleted by cascade.

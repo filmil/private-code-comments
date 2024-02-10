@@ -220,7 +220,7 @@ func (s *Server) DiagnosticsFn() {
 			p := lsp.PublishDiagnosticsParams{URI: uri, Diagnostics: d}
 			if err := s.conn.Notify(
 				ctx, lsp.MethodTextDocumentPublishDiagnostics, &p); err != nil {
-				glog.Errorf("DiagnosticsFn: error while publishing diagnostics for: %v", uri)
+				glog.Errorf("DiagnosticsFn: error while publishing diagnostics for: %v: %v", uri, err)
 			}
 		}
 	}
@@ -276,6 +276,52 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 		}()
 
 		switch req.Method() {
+		case `$/cancelRequest`:
+			glog.Infof("JSON-RPC2: cancel: %+v", string(req.Params()))
+		case `$/pcc/get`:
+			glog.Infof("JSON-RPC2: %+v", string(req.Params()))
+			var p pkg.PccGet
+			if err := json.Unmarshal(req.Params(), &p); err != nil {
+				return fmt.Errorf("error during $/pcc/get: %w", err)
+			}
+			glog.V(1).Infof("$/pcc/get: Request: %v", spew.Sdump(p)) // This is expensive.
+			// Sanity check here.
+
+			if !strings.HasPrefix(string(p.File), "file:") {
+				return fmt.Errorf("malformed file URI, no scheme: %+v", p)
+			}
+			ws, rpath := pkg.FindWorkspace(s.workspaceFolders, p.File)
+			ann, err := pkg.GetAnn(s.db, ws, rpath, p.Line)
+			if err != nil {
+				return fmt.Errorf("could not get annotation: %+v: %w", p, err)
+			}
+			r := pkg.PccGetResp{
+				Content: ann,
+			}
+			glog.V(1).Infof("$/pcc/get: reply: %v", spew.Sdump(r)) // This is expensive.
+			return reply(ctx, r, nil)
+
+		case `$/pcc/set`:
+			var p pkg.PccSet
+			if err := json.Unmarshal(req.Params(), &p); err != nil {
+				return fmt.Errorf("error during $/pcc/get: %v", err)
+			}
+			glog.V(1).Infof("$/pcc/set: Request: %v", spew.Sdump(p)) // This is expensive.
+			ws, rpath := pkg.FindWorkspace(s.workspaceFolders, p.File)
+			if p.Content == "" {
+				if err := pkg.DeleteAnn(s.db, ws, rpath, p.Line); err != nil {
+					glog.V(1).Infof("$/pcc/set: OOK!")
+					return fmt.Errorf("could not delete: %+v: %w", p, err)
+				}
+			} else {
+				// Update.
+				if err := pkg.InsertAnn(s.db, ws, rpath, p.Line, p.Content); err != nil {
+					return fmt.Errorf("could not upsert: %+v: %w", p, err)
+				}
+			}
+			reply(ctx, pkg.PccSetRes{}, nil)
+			s.diagnosticQueue <- p.File
+
 		case lsp.MethodTextDocumentDidSave:
 			var p lsp.DidSaveTextDocumentParams
 			glog.V(1).Infof("didSave: Request: %v", spew.Sdump(p)) // This is expensive.

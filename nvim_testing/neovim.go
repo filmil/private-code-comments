@@ -180,8 +180,26 @@ func LogAllLines(t *testing.T, lines []string) {
 	}
 }
 
-// WaitForAnns waits for annotations.  Returns error if the exact annotations are
-// not found.
+func WaitForAnn(ctx context.Context, cl *nvim.Nvim, text string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	for {
+		actual, err := GetComment(cl)
+		if err != nil {
+			return fmt.Errorf("could not get comment: %w", err)
+		}
+		if actual == text {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("WaitForAnn: timeout: got=%q, want: %q", actual, text)
+		case <-time.After(1 * time.Second):
+		}
+	}
+}
+
 func WaitForLine(ctx context.Context, cl *nvim.Nvim, buf nvim.Buffer, line int, text string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -291,4 +309,33 @@ func GetLspAttachEvent(cl *nvim.Nvim, pattern string) (chan struct{}, error) {
 
 func EditFile(cl *nvim.Nvim, filename string) error {
 	return cl.Command(fmt.Sprintf("edit %s", filename))
+}
+
+// GetComment gets a comment for current line of text.
+func GetComment(cl *nvim.Nvim) (string, error) {
+	var (
+		r    interface{}
+		args interface{}
+	)
+	if err := cl.ExecLua(`return require('pcc').get_comment()`, &r, &args); err != nil {
+		return "", fmt.Errorf("got error instead of result: %w", err)
+	}
+	s, ok := r.(string)
+	if !ok {
+		return "", fmt.Errorf("got something that is not string: %v", r)
+	}
+	return s, nil
+}
+
+// SetComment sets a comment for current line of text.
+func SetComment(cl *nvim.Nvim, content string) error {
+	var (
+		r    interface{}
+		args interface{}
+	)
+	err := cl.ExecLua(fmt.Sprintf(`return require('pcc').set_comment(%q)`, content), &r, &args)
+	if err != nil {
+		return fmt.Errorf("got error instead of set comments: %w", err)
+	}
+	return nil
 }

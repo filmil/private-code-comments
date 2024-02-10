@@ -1,5 +1,10 @@
 -- Try print something from vim.
 
+P = function(v)
+  print(vim.inspect(v))
+  return v
+end
+
 local client_name = 'pcc'
 
 local method_get = '$/pcc/get' -- file, line -> text or ""
@@ -19,10 +24,42 @@ local function get()
         -- I bet this will be the mysterious error...
         return "e:1"
     end
-    return client.request_sync(method_get, {
-        file = parent_buf_path, -- probably needs to be formatted as URI.
+
+    -- The return values here are a mess. Yo uwill get `nil` on some errors;
+    -- OR you get a result object which is a table like:
+    -- {
+    --   result = {
+    --     -- your result
+    --   }
+    -- }
+    -- OR you will get an error like:
+    -- {
+    --   err = {
+    --     code = 42,
+    --     message = "foo",
+    --     data = <literally anything, including nil>
+    --   }
+    -- }
+    --
+    -- I am not a fan.
+    local r = client.request_sync(method_get, {
+        file = string.format("file://%s", parent_buf_path),
         line = cursor_line,
     }, 100, parent_buf)
+    if r == nil then
+        return ""
+    end
+    if r["err"] ~= nil then
+        -- Log stuff here and below.
+        return ""
+    end
+    if r["result"] == nil then
+        return ""
+    end
+    if r["result"]["content"] == nil then
+        return ""
+    end
+    return r["result"]["content"]
 end
 
 local function set(content)
@@ -46,26 +83,31 @@ local function set(content)
                 client_name, parent_buf, cursor_line, parent_buf_path, buffers)
     end
     return client.request(method_set, {
-        file = parent_buf_path,
+        file = string.format("file://%s", parent_buf_path),
         line = cursor_line,
-        text = content,
+        content = content,
     }, nil, parent_buf)
 end
 
 local M = {
-    get_comment = set,
-    --get_comment = function ()
-        --return "oogabooga"
-    --end,
-    set_comment = function()
-        return "oogabooga2"
-    end,
+    get_comment = get,
+    set_comment = set,
 }
 
 function M.setup()
     -- Add something here.
 end
 
+function M.handlers()
+    -- Apparently, these are handlers for messages that are sent from the lsp
+    -- server to here.  While we don't use them, we must define them so that
+    -- our requests from `get` and `set` would be honored. Why this works this
+    -- way, I have no idea.
+    return {
+        ["$/pcc/set"] = function() end,
+        ["$/pcc/get"] = function() end,
+    }
+end
 
 return M
 
