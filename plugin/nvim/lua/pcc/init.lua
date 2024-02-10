@@ -37,7 +37,7 @@ local function get(buf_info)
     })[1]
     if client == nil then
         -- I bet this will be the mysterious error...
-        return "e:1 - no client???"
+        return {"e:1 - no client???"}
     end
 
     -- The return values here are a mess. Yo uwill get `nil` on some errors;
@@ -62,17 +62,17 @@ local function get(buf_info)
         line = cursor_line,
     }, 100, parent_buf)
     if r == nil then
-        return ""
+        return {}
     end
     if r["err"] ~= nil then
         -- Log stuff here and below.
-        return ""
+        return {}
     end
     if r["result"] == nil then
-        return ""
+        return {}
     end
     if r["result"]["content"] == nil then
-        return ""
+        return {}
     end
     return r["result"]["content"]
 end
@@ -130,14 +130,11 @@ local function create_annot_win(annot_buf, cursor_ln, extmark_parent_win, win_wi
 end
 
 local default_opts = {
-    annot_sign = '@',
-    annot_sign_hl = 'Comment',
-    annot_sign_hl_current = 'FloatBorder',
     annot_win_width = 25,
     annot_win_padding = 2,
 
     log_dir = os.getenv("PCC_LOG_DIR"),
-    pcc_binary = os.getenv("PCC_BINARY"),
+    pcc_binary = os.getenv("PCC_BINARY") or "pcc",
     db = os.getenv("PCC_DB"),
 
     root_patterns = {
@@ -146,18 +143,21 @@ local default_opts = {
         "workspace.marker",
     },
 
+    file_patterns = { "text" },
+
     log_verbosity = 4,
+
+    annotate_command = "<leader>cr",
+    delete_command = "<leader>cd",
 }
 
 function M.setup(opts)
     M.config = vim.tbl_deep_extend('force', default_opts, opts or {})
-
-
     vim.lsp.set_log_level("debug")
     vim.api.nvim_create_autocmd(
       { "FileType" },
       {
-        pattern = { "text" },
+        pattern = M.config.file_patterns,
         nested = true,
         callback = function()
           vim.lsp.start({
@@ -176,23 +176,45 @@ function M.setup(opts)
       }
     )
 
+    vim.keymap.set({'n'}, M.config.annotate_command,
+        function()
+            require('pcc').edit()
+        end)
+    vim.keymap.set({'n'}, M.config.delete_command,
+        function()
+            require('pcc').delete()
+        end)
+end
+
+local function find_buf_by_name(name)
+    local bufs = vim.api.nvim_list_bufs()
+    for _, buf_id in ipairs(bufs) do
+        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        print(buf_name)
+        if buf_name == name then
+            return buf_id
+        end
+    end
+    return -1
 end
 
 local function create_annot_buf(buf_info, annotation)
     local annot_buf_name = 'Annotation'
-    local annot_buf = -1 -- not sure what should be here.
+    local annot_buf = -1
     local extmark_parent_win = vim.api.nvim_get_current_win()
     local win_width = vim.api.nvim_win_get_width(extmark_parent_win)
     local padding = M.config.annot_win_padding
     local annot_win
 
-    -- Populate buffer with text and install commands.
-    annot_buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(annot_buf, 0, -1, true, annotation)
-    vim.api.nvim_buf_set_name(annot_buf, annot_buf_name)
-
-    -- Press `q` in normal mode to close the window.
-    vim.api.nvim_buf_set_keymap(annot_buf, 'n', 'q', ':close<CR>', {noremap=true, silent=true, nowait=true})
+    if annot_buf == -1 then
+        annot_buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(annot_buf, 0, -1, true, annotation)
+        vim.api.nvim_buf_set_keymap(annot_buf, 'n', 'q', ':close<CR>', {noremap=true, silent=true, nowait=true})
+        vim.schedule(function()
+            -- Try to avoid "can not change name".
+            --vim.api.nvim_buf_set_name(annot_buf, annot_buf_name)
+        end)
+    end
 
     --
     local edit_group = vim.api.nvim_create_augroup('EditComment', {clear=true})
@@ -216,8 +238,14 @@ function M.edit()
     local buf_info = get_current_buf_info()
 
     local annotation = get(buf_info)
-    local annot_buf, annot_win = create_annot_buf(buf_info)
+    local annot_buf, annot_win = create_annot_buf(buf_info, annotation)
     -- Open buffer in a window, and pass buff info there.
+end
+
+function M.delete()
+    local buf_info = get_current_buf_info()
+    set({}, buf_info)
+
 end
 
 function M.handlers()

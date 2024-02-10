@@ -96,6 +96,66 @@ func TestInsertRead(t *testing.T) {
 	}
 }
 
+func TestInserts(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		inserts  []Ann
+		expected []Ann
+	}{
+		{
+			name: "initial",
+			inserts: []Ann{
+				{1, "Hello"},
+			},
+			expected: []Ann{
+				{1, "Hello"},
+			},
+		},
+		{
+			name: "2 inserts",
+			inserts: []Ann{
+				{1, "Hello"},
+				{2, "Hello world"},
+			},
+			expected: []Ann{
+				{1, "Hello"},
+				{2, "Hello world"},
+			},
+		},
+		{
+			name: "update",
+			inserts: []Ann{
+				{1, "Hello"},
+				{1, "Hello world"},
+			},
+			expected: []Ann{
+				{1, "Hello world"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		db := NewDB()
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			for _, a := range test.inserts {
+				if err := InsertAnn(db, "ws", "path", a.Line, a.Content); err != nil {
+					t.Fatalf("could not insert record:\n\t%v:\n\ttest=%+v", err, test)
+				}
+			}
+
+			anns, err := GetAnns(db, "ws", "path")
+			if err != nil {
+				t.Fatalf("could not read record:\n\t%v:\n\ttest=%+v", err, test)
+			}
+			if reflect.DeepEqual(anns, test.expected) == false {
+				t.Errorf("\n\twant: %+v\n\tgot : %+v", test.expected, anns)
+			}
+		})
+	}
+}
+
 func TestInsertDelete(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

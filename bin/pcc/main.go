@@ -36,6 +36,7 @@ func main() {
 	)
 
 	// Set up flags
+
 	flag.StringVar(&dbFilename,
 		"db", pkg.DefaultFilename, "The file name for the private comments")
 	flag.StringVar(&socketFile,
