@@ -16,6 +16,22 @@ local function get_current_buf_info()
     }
 end
 
+-- Returns the pcc client for the given buffer (or nil) if it exists, or
+-- nil if it does not.
+local function find_client(bufnr)
+    local opts = {
+        name = client_name,
+        bufnr = bufnr,
+    }
+    if bufnr == nil then
+        opts = {
+            name = client_name,
+        }
+    end
+    local client = vim.lsp.get_active_clients(opts)[1]
+    return client
+end
+
 local function get(buf_info)
     if buf_info == nil then
         buf_info = get_current_buf_info()
@@ -24,10 +40,7 @@ local function get(buf_info)
     local parent_buf_path = buf_info.parent_buf_path
     local cursor_line = buf_info.cursor_line
 
-    local client = vim.lsp.get_active_clients({
-        name = client_name,
-        bufnr = parent_buf,
-    })[1]
+    local client = find_client(parent_buf)
     if client == nil then
         return {
             err = {
@@ -253,6 +266,8 @@ local function create_annot_buf(buf_info, annotation)
     return annot_buf, annot_win
 end
 
+-- Edits the note at the current line of the current buffer, or creates one
+-- if it does not exist.
 function M.edit()
     local buf_info = get_current_buf_info()
 
@@ -261,6 +276,8 @@ function M.edit()
     -- Open buffer in a window, and pass buff info there.
 end
 
+-- Deletes the note at the current line of the current buffer.  Nothing happens
+-- if there isn't a note there.
 function M.delete()
     local buf_info = get_current_buf_info()
     set({}, buf_info)
