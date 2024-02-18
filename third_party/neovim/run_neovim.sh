@@ -164,8 +164,6 @@ env \
     XDG_CONFIG_DIRS="${_nvim_lua_dir}:${_plugin_nvim_dir}" \
     VIMRUNTIME="${_nvim_share_dir}" \
     LD_PRELOAD_PATH="${_nvim_lib_dir}" \
-    /usr/bin/nohup \
-    /usr/bin/timeout "${gotopt2_timeout}" \
     "${gotopt2_nvim_binary}" \
       ${gotopt2_args__[@]} \
       ${background}
