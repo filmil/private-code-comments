@@ -87,6 +87,10 @@ flags:
 - name: "debug-keep-logs"
   type: bool
   help: "if set, logs are kept, not removed."
+- name: "blocking"
+  type: bool
+  default: false
+  help: "if set, neovim is started in blocking mode, this is for outside of tests"
 EOF
 )
 if [[ "$?" == "11" ]]; then
@@ -139,6 +143,11 @@ if [[ "${gotopt2_nvim_lib_dir}" == "" ]]; then
 fi
 readonly _nvim_lib_dir="${gotopt2_nvim_lib_dir}" # path to shared libraries
 
+_background="&"
+if [[ "${gotopt2_blocking}" == "true" ]]; then
+  _background=""
+fi
+
 chmod a+x -R "${_nvim_lib_dir}"
 
 # XDG_CONFIG_HOME is where neovim looks for its init files and plugins.
@@ -158,7 +167,8 @@ env \
     /usr/bin/nohup \
     /usr/bin/timeout "${gotopt2_timeout}" \
     "${gotopt2_nvim_binary}" \
-      ${gotopt2_args__} &
+      ${gotopt2_args__[@]} \
+      ${background}
 
 readonly _nvim_pid="$!"
 

@@ -16,3 +16,18 @@ run_neovim(
         "//plugin/nvim/lua/pcc:scripts",
     ],
 )
+
+run_neovim(
+    name = "visual",
+    args = [
+        "--blocking",
+        "--",
+        "$(location //nvim_testing/content:file)",
+    ],
+    data = [
+        "//:workspace.marker",
+        "//nvim_testing/content:file",
+        "//plugin/nvim:scripts",
+        "//plugin/nvim/lua/pcc:scripts",
+    ],
+)
