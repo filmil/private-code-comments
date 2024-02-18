@@ -185,6 +185,7 @@ local default_opts = {
 
 function M.setup(opts)
     M.config = vim.tbl_deep_extend('force', default_opts, opts or {})
+    local client = find_client()
     vim.lsp.set_log_level("debug")
     vim.api.nvim_create_autocmd(
       { "FileType" },
@@ -192,6 +193,9 @@ function M.setup(opts)
         pattern = M.config.file_patterns,
         nested = true,
         callback = function()
+          if client == nil then
+            return
+          end
           vim.lsp.start({
             cmd = {
                 M.config.pcc_binary,
@@ -208,14 +212,16 @@ function M.setup(opts)
       }
     )
 
-    vim.keymap.set({'n'}, M.config.annotate_command,
-        function()
-            require('pcc').edit()
-        end)
-    vim.keymap.set({'n'}, M.config.delete_command,
-        function()
-            require('pcc').delete()
-        end)
+    if client ~= nil then
+        vim.keymap.set({'n'}, M.config.annotate_command,
+            function()
+                require('pcc').edit()
+            end)
+        vim.keymap.set({'n'}, M.config.delete_command,
+            function()
+                require('pcc').delete()
+            end)
+    end
 end
 
 local function find_buf_by_name(name)
@@ -241,14 +247,14 @@ local function create_annot_buf(buf_info, annotation)
     if annot_buf == -1 then
         annot_buf = vim.api.nvim_create_buf(false, true)
         vim.api.nvim_buf_set_lines(annot_buf, 0, -1, true, annotation)
-        vim.api.nvim_buf_set_keymap(annot_buf, 'n', 'q', ':close<CR>', {noremap=true, silent=true, nowait=true})
+        vim.api.nvim_buf_set_keymap(annot_buf, 'n', 'q', ':close<CR>',
+            {noremap=true, silent=true, nowait=true})
         vim.schedule(function()
             -- Try to avoid "can not change name".
             --vim.api.nvim_buf_set_name(annot_buf, annot_buf_name)
         end)
     end
 
-    --
     local edit_group = vim.api.nvim_create_augroup('EditComment', {clear=true})
 
     -- When window is closed, save the annotation.
@@ -261,7 +267,8 @@ local function create_annot_buf(buf_info, annotation)
         buffer = annot_buf,
     })
 
-    annot_win = create_annot_win(annot_buf, buf_info.cursor_line, extmark_parent_win, win_width, padding)
+    annot_win = create_annot_win(
+        annot_buf, buf_info.cursor_line, extmark_parent_win, win_width, padding)
 
     return annot_buf, annot_win
 end
