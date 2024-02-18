@@ -193,7 +193,7 @@ function M.setup(opts)
         pattern = M.config.file_patterns,
         nested = true,
         callback = function()
-          if client == nil then
+          if client ~= nil then
             return
           end
           vim.lsp.start({
@@ -212,18 +212,17 @@ function M.setup(opts)
       }
     )
 
-    if client ~= nil then
-        vim.keymap.set({'n'}, M.config.annotate_command,
-            function()
-                require('pcc').edit()
-            end)
-        vim.keymap.set({'n'}, M.config.delete_command,
-            function()
-                require('pcc').delete()
-            end)
-    end
+    vim.keymap.set({'n'}, M.config.annotate_command,
+        function()
+            require('pcc').edit()
+        end)
+    vim.keymap.set({'n'}, M.config.delete_command,
+        function()
+            require('pcc').delete()
+        end)
 end
 
+-- Returns the numeric ID of the buffer with the given name.
 local function find_buf_by_name(name)
     local bufs = vim.api.nvim_list_bufs()
     for _, buf_id in ipairs(bufs) do
