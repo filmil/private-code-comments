@@ -156,6 +156,7 @@ func CreateSchema(db *sql.DB) error {
 //     for ws="file://dir", and file URI
 //     "file://dir/file.txt", then path should be "/file.txt".
 func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) error {
+	glog.V(2).Infof("db/InsertAnn: ws=%v, path=%v, line=%v", workspace, path, line)
 	tx := Must(db.Begin())
 	r := Must(db.Exec(`INSERT INTO Annotations(Content) VALUES (?);`, text))
 	id := Must(r.LastInsertId())
@@ -171,6 +172,7 @@ func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) err
 // DeleteAnn deletes an annotation for the specific workspace, path and line.
 // The annotation does not need to exist.
 func DeleteAnn(db *sql.DB, workspace, path string, line uint32) error {
+	glog.V(2).Infof("db/DeleteAnn: ws=%v, path=%v, line=%v", workspace, path, line)
 	r, err := db.Exec(`
 		-- The Annotations table entry is deleted by cascade.
 		DELETE FROM	AnnotationLocations
@@ -196,6 +198,8 @@ func DeleteAnn(db *sql.DB, workspace, path string, line uint32) error {
 
 // MoveAnn moves a single annotation from a file location to another location in a possibly different file.
 func MoveAnn(db *sql.DB, workspace, path string, line uint32, newPath string, newLine uint32) error {
+	glog.V(2).Info("db/MoveAnn: ws=%v, path=%v, line=%v -> newPath=%v, newLine=%v",
+		workspace, path, line, newPath, newLine)
 	r, err := db.Exec(`
 		UPDATE		AnnotationLocations
 		SET			Path = ?, Line = ?
@@ -240,6 +244,8 @@ func BulkMoveAnn(db *sql.DB, workspace, path string, firstLine uint32, delta int
 
 // Schedules a BulkMoveAnn into a transaction.
 func TxBulkMoveAnn(tx *sql.Tx, workspace, path string, firstLine uint32, delta int32) error {
+	glog.V(2).Info("db/TxBulkMoveAnn: ws=%v, path=%v, firstLine=%v, delta=%v",
+		workspace, path, firstLine, delta)
 	_, err := tx.Exec(`
 		UPDATE			AnnotationLocations
 		SET				Line = Line + ?
