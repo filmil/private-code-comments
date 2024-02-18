@@ -1,15 +1,8 @@
--- Try print something from vim.
-
-P = function(v)
-  print(vim.inspect(v))
-  return v
-end
-
 local client_name = 'pcc'
-
 local method_get = '$/pcc/get' -- file, line -> text or ""
 local method_set = '$/pcc/set' -- file, line, text -> (nothing)
 
+-- Returns the current buffer information.
 local function get_current_buf_info()
     local parent_win = vim.api.nvim_get_current_win()
     local parent_buf = vim.api.nvim_win_get_buf(parent_win)
@@ -36,8 +29,12 @@ local function get(buf_info)
         bufnr = parent_buf,
     })[1]
     if client == nil then
-        -- I bet this will be the mysterious error...
-        return {"e:1 - no client???"}
+        return {
+            err = {
+                code = 43,
+                message = "no pcc client was found",
+            }
+        }
     end
 
     -- The return values here are a mess. Yo uwill get `nil` on some errors;
@@ -88,16 +85,22 @@ local function set(content, buf_info)
     local buffers = vim.api.nvim_list_bufs()[1]
 
     local client = vim.lsp.get_active_clients({
-        --name = client_name,
+        name = client_name,
         bufnr = parent_buf,
     })[1] -- is this correct?
 
     if client == nil then
+        local err_msg = string.format(
+            "pcc: client: name=%s; bufnr=%d; line=%d; path=%s, bufs=%s",
+                client_name, parent_buf, cursor_line, parent_buf_path, buffers)
         -- I bet this will be the mysterious error...
         -- I was right.
-        return string.format(
-            "clientooga: name=%s; bufnr=%d; line=%d; path=%s, bufs=%s",
-                client_name, parent_buf, cursor_line, parent_buf_path, buffers)
+        return {
+            err = {
+                code = 44,
+                message = err_msg,
+            }
+        }
     end
     return client.request(method_set, {
         file = string.format("file://%s", parent_buf_path),
@@ -130,13 +133,24 @@ local function create_annot_win(annot_buf, cursor_ln, extmark_parent_win, win_wi
 end
 
 local default_opts = {
+    -- This is how wide the annotation window will be.
     annot_win_width = 25,
+
+    -- This is the padding, obviously.
     annot_win_padding = 2,
 
-    log_dir = os.getenv("PCC_LOG_DIR"),
-    pcc_binary = os.getenv("PCC_BINARY") or "pcc",
-    db = os.getenv("PCC_DB"),
+    -- This is the directory where the LSP client will write its logs.
+    log_dir = os.getenv("PCC_LOG_DIR") or (vim.fn.stdpath("state") .. "/pcc/logs"),
 
+    -- This is where to find the PCC binary.
+    pcc_binary = os.getenv("PCC_BINARY") or (vim.fn.stdpath("data") .. "/pcc/pcc"),
+
+    -- Database could be in the local state directory by default.
+    db = os.getenv("PCC_DB") or (vim.fn.stdpath("state") .. "/pcc/db/db.sqlite"),
+
+    -- At startup, we will walk up the filesystem paths to find the workspace.
+    -- If we find any of these files (or dirs, no matter), that's where we will
+    -- consider the workspace to start.
     root_patterns = {
         ".git",
         -- From //nvim_testing/content:workspace.marker
@@ -145,9 +159,14 @@ local default_opts = {
 
     file_patterns = { "text" },
 
+    -- Set to something higher than 0 to have the "pcc" binary log verbose
+    -- diagnostics.
     log_verbosity = 0,
 
+    -- The default binding to the "add or edit" command.
     annotate_command = "<leader>cr",
+
+    -- The default binding to the "delete" command.
     delete_command = "<leader>cd",
 }
 
@@ -254,8 +273,8 @@ function M.handlers()
     -- our requests from `get` and `set` would be honored. Why this works this
     -- way, I have no idea.
     return {
-        ["$/pcc/set"] = function() end,
-        ["$/pcc/get"] = function() end,
+        [method_get] = function() end,
+        [method_set] = function() end,
     }
 end
 
