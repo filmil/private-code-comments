@@ -131,7 +131,9 @@ func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) (*Server, er
 	ctx, cancel := context.WithCancel(ctx)
 
 	s := Server{
-		diagnosticQueue: make(chan lsp.URI, 1),
+		// The queue capacity needs to be a little bit large, since the processing function
+		// may add to it.
+		diagnosticQueue: make(chan lsp.URI, 10),
 		initialized:     make(chan struct{}, 1),
 		globalCtx:       ctx,
 		db:              db,
@@ -195,6 +197,9 @@ func (s *Server) Shutdown() {
 func (s *Server) DiagnosticsFn() {
 	<-s.initialized
 	glog.V(1).Infof("diagnostics up and running")
+	defer func() {
+		glog.V(1).Infof("diagnostics is exiting")
+	}()
 	ctx, cancel := context.WithCancel(s.globalCtx)
 	defer cancel()
 	for {
@@ -211,7 +216,7 @@ func (s *Server) DiagnosticsFn() {
 			}
 			if len(anns) == 0 {
 				glog.V(1).Infof("DiagnosticsFn: nothing to publish.")
-				return
+				continue
 			}
 			var d []lsp.Diagnostic
 			for _, a := range anns {
@@ -267,6 +272,12 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32,
 	return nil
 }
 
+const (
+	PccSetCmd = `$/pcc/set`
+	PccGetCmd = `$/pcc/get`
+	CancelCmd = `%/cancelRequest`
+)
+
 // GetHandlerFunc returns a stateful function that can be given to jsonrpc2.StreamServer
 // to serve JSON-RPC2 requests.
 func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
@@ -277,9 +288,9 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 		}()
 
 		switch req.Method() {
-		case `$/cancelRequest`:
+		case lsp.MethodCancelRequest:
 			glog.Infof("JSON-RPC2: cancel: %+v", string(req.Params()))
-		case `$/pcc/get`:
+		case PccGetCmd:
 			glog.Infof("JSON-RPC2: %+v", string(req.Params()))
 			var p pkg.PccGet
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
@@ -299,26 +310,29 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			r := pkg.PccGetResp{
 				Content: strings.Split(ann, "\n"),
 			}
-			glog.V(1).Infof("$/pcc/get: reply: %v", spew.Sdump(r)) // This is expensive.
+			glog.V(3).Infof("$/pcc/get: reply: %v", spew.Sdump(r))
 			return reply(ctx, r, nil)
 
-		case `$/pcc/set`:
+		case PccSetCmd:
 			var p pkg.PccSet
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during $/pcc/get: %v", err)
 			}
-			glog.V(1).Infof("$/pcc/set: Request: %v", spew.Sdump(p)) // This is expensive.
+			glog.V(3).Infof("$/pcc/set: Request: %v", spew.Sdump(p)) // This is expensive.
 			ws, rpath := pkg.FindWorkspace(s.workspaceFolders, p.File)
 			content := strings.Join(p.Content, "\n")
 			if content == "" {
 				if err := pkg.DeleteAnn(s.db, ws, rpath, p.Line); err != nil {
-					glog.V(1).Infof("$/pcc/set: OOK!")
-					return fmt.Errorf("could not delete: %+v: %w", p, err)
+					err := fmt.Errorf("could not delete: %+v: %w", p, err)
+					glog.V(1).Infof("$/pcc/set: error: %v", err)
+					return err
 				}
 			} else {
 				// Update.
 				if err := pkg.InsertAnn(s.db, ws, rpath, p.Line, content); err != nil {
-					return fmt.Errorf("could not upsert: %+v: %w", p, err)
+					err := fmt.Errorf("could not upsert: %+v: %w", p, err)
+					glog.V(1).Infof("$/pcc/set: error: %v", err)
+					return err
 				}
 			}
 			reply(ctx, pkg.PccSetRes{}, nil)
