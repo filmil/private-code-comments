@@ -166,7 +166,7 @@ local default_opts = {
     -- consider the workspace to start.
     root_patterns = {
         ".git",
-        ".pcc.config.json",
+        "pcc.config.json",
     },
 
     file_patterns = { "text" },
@@ -205,7 +205,7 @@ function M.setup(opts)
             root_dir = vim.fs.dirname(
               vim.fs.find(M.config.root_patterns,
               { upward = true })[1]),
-            handlers = require('pcc').handlers(),
+            handlers = M.handlers(),
           })
         end
       }
@@ -213,11 +213,11 @@ function M.setup(opts)
 
     vim.keymap.set({'n'}, M.config.annotate_command,
         function()
-            require('pcc').edit()
+            M.edit()
         end)
     vim.keymap.set({'n'}, M.config.delete_command,
         function()
-            require('pcc').delete()
+            M.delete()
         end)
 end
 

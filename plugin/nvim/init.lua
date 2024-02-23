@@ -8,7 +8,7 @@ vim.g.maplocalleader='\\'
 vim.lsp.set_log_level("debug")
 
 -- From //:marker
-local root_patterns = { ".pcc.config.json" }
+local root_patterns = { "pcc.config.json" }
 
 local db_name = os.getenv("PCC_DB")
 

@@ -94,7 +94,7 @@ local default_opts = {
     -- The file patterns used to determine workspace root.
     root_patterns = {
         ".git",
-        ".pcc.config.json",
+        "pcc.config.json",
     },
 
     -- The file types that the server will apply to.

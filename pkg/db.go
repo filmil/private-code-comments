@@ -363,6 +363,9 @@ func BulkDeleteAnn(db *sql.DB, workspace, path string, firstLine uint32, lastLin
 // GetAnn retrieves a single annotation.  Or an error if that particular annotation
 // does not exist.
 func GetAnn(db *sql.DB, workspace, path string, line uint32) (string, error) {
+	if workspace == "" || path == "" {
+		return "", fmt.Errorf("GetAnn: empty workspace or path: ws=%q, path=%q", workspace, path)
+	}
 	const readAnnStmtStr = `
 		SELECT		Content
 		FROM		AnnotationLocations
@@ -417,6 +420,9 @@ func GetRawAnns(db *sql.DB) ([]Ann, error) {
 
 // GetAnns returns all annotations for the given path in the workspace.
 func GetAnns(db *sql.DB, workspace, path string) ([]Ann, error) {
+	if workspace == "" || path == "" {
+		return nil, fmt.Errorf("GetAnns: empty workspace or path: ws=%q, path=%q", workspace, path)
+	}
 	ret := []Ann{}
 	r, err := db.Query(`
 		SELECT		Line, Content

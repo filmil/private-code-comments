@@ -208,8 +208,9 @@ func (s *Server) DiagnosticsFn() {
 		case <-s.globalCtx.Done():
 			break
 		case uri := <-s.diagnosticQueue:
-			glog.V(1).Infof("queue tick: %q", uri)
+			glog.V(1).Infof("queue: %q", uri)
 			ws, rpath := s.FindWorkspace(uri)
+			glog.V(4).Infof("Operating on ws=%q, path=%q for: %v", ws, rpath, uri)
 			anns, err := pkg.GetAnns(s.db, ws, rpath)
 			if err != nil {
 				glog.Errorf("error getting annotations: workspace=%v, file=%v: %v", ws, rpath, err)

@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	ws = "ws" // from .pcc.config.json
+	ws = "ws" // from pcc.config.json
 }
 
 func TestOne(t *testing.T) {

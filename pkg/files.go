@@ -47,6 +47,7 @@ func FindWorkspace(w []lsp.WorkspaceFolder, fileURI lsp.URI) (string, string) {
 			} else {
 				pWs = ws.URI
 			}
+			glog.V(3).Infof("check: ws=%v, pWs=%q, pFile=%q", ws, pWs, pFile)
 		}
 	}
 	return pWs, pFile
