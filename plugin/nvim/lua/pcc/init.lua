@@ -166,8 +166,7 @@ local default_opts = {
     -- consider the workspace to start.
     root_patterns = {
         ".git",
-        -- From //nvim_testing/content:workspace.marker
-        "workspace.marker",
+        ".pcc.config.json",
     },
 
     file_patterns = { "text" },

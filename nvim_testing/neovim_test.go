@@ -4,9 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
 	"path"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -22,11 +20,7 @@ var (
 )
 
 func init() {
-	wsx, err := os.Getwd()
-	if err != nil {
-		panic(fmt.Sprintf("could not get working dir: %v", err))
-	}
-	ws = lsp.URI(fmt.Sprintf("file://%v", filepath.Clean(wsx)))
+	ws = "ws" // from .pcc.config.json
 }
 
 func TestOne(t *testing.T) {

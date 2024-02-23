@@ -38,18 +38,26 @@ func TestFindWorkspace(t *testing.T) {
 	}{
 		{
 			[]lsp.WorkspaceFolder{
-				{URI: "file:///ws", Name: "ws"},
+				{URI: "file:///ws", Name: ""},
 			},
 			lsp.URI("file:///ws/file.txt"),
 			"file:///ws", "/file.txt",
 		},
 		{
 			[]lsp.WorkspaceFolder{
-				{URI: "file:///ws", Name: "ws"},
-				{URI: "file:///ws2", Name: "ws"},
+				{URI: "file:///ws", Name: ""},
+				{URI: "file:///ws2", Name: ""},
 			},
 			lsp.URI("file:///ws2/file.txt"),
 			"file:///ws2", "/file.txt",
+		},
+		{
+			[]lsp.WorkspaceFolder{
+				{URI: "file:///ws", Name: "ws"},
+				{URI: "file:///ws2", Name: "ws2"},
+			},
+			lsp.URI("file:///ws2/file.txt"),
+			"ws2", "/file.txt",
 		},
 	}
 

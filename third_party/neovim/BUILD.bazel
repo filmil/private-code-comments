@@ -10,7 +10,7 @@ run_neovim(
         "$(location //nvim_testing/content:file)",
     ],
     data = [
-        "//:workspace.marker",
+        "//:marker",
         "//nvim_testing/content:file",
         "//plugin/nvim:scripts",
         "//plugin/nvim/lua/pcc:scripts",
@@ -25,7 +25,7 @@ run_neovim(
         "$(location //nvim_testing/content:file)",
     ],
     data = [
-        "//:workspace.marker",
+        "//:marker",
         "//nvim_testing/content:file",
         "//plugin/nvim:scripts",
         "//plugin/nvim/lua/pcc:scripts",

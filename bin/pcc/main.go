@@ -249,7 +249,7 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32,
 		}
 	}
 	if delta < 0 {
-		// Deletion is complicated.
+		// Deletion is a tad bit complicated.
 		// (1) The lines below the delete are moved up by delta.
 		// (2) The lines affected by the delete, are merged in sequence, and
 		// attached to the first line. As a transaction.
@@ -267,7 +267,6 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32,
 	}
 
 	glog.V(1).Info("refresh diagnostics.")
-	// Refresh diagnostics
 	s.diagnosticQueue <- uri
 	return nil
 }
@@ -296,7 +295,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during $/pcc/get: %w", err)
 			}
-			glog.V(1).Infof("$/pcc/get: Request: %v", spew.Sdump(p)) // This is expensive.
+			glog.V(1).Infof(PccGetCmd+": Request: %v", spew.Sdump(p)) // This is expensive.
 			// Sanity check here.
 
 			if !strings.HasPrefix(string(p.File), "file:") {
@@ -310,7 +309,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			r := pkg.PccGetResp{
 				Content: strings.Split(ann, "\n"),
 			}
-			glog.V(3).Infof("$/pcc/get: reply: %v", spew.Sdump(r))
+			glog.V(3).Infof(PccGetCmd+": reply: %v", spew.Sdump(r))
 			return reply(ctx, r, nil)
 
 		case PccSetCmd:
@@ -318,20 +317,20 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			if err := json.Unmarshal(req.Params(), &p); err != nil {
 				return fmt.Errorf("error during $/pcc/get: %v", err)
 			}
-			glog.V(3).Infof("$/pcc/set: Request: %v", spew.Sdump(p)) // This is expensive.
+			glog.V(3).Infof(PccSetCmd+": Request: %v", spew.Sdump(p)) // This is expensive.
 			ws, rpath := pkg.FindWorkspace(s.workspaceFolders, p.File)
 			content := strings.Join(p.Content, "\n")
 			if content == "" {
 				if err := pkg.DeleteAnn(s.db, ws, rpath, p.Line); err != nil {
 					err := fmt.Errorf("could not delete: %+v: %w", p, err)
-					glog.V(1).Infof("$/pcc/set: error: %v", err)
+					glog.V(1).Infof(PccSetCmd+": error: %v", err)
 					return err
 				}
 			} else {
 				// Update.
 				if err := pkg.InsertAnn(s.db, ws, rpath, p.Line, content); err != nil {
 					err := fmt.Errorf("could not upsert: %+v: %w", p, err)
-					glog.V(1).Infof("$/pcc/set: error: %v", err)
+					glog.V(1).Infof(PccSetCmd+": error: %v", err)
 					return err
 				}
 			}
@@ -394,7 +393,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			}
 			glog.V(1).Infof("Request: %v", spew.Sdump(p)) // This is expensive.
 			s.clientInfo = p.ClientInfo
-			s.workspaceFolders = append(s.workspaceFolders, p.WorkspaceFolders...)
+			s.workspaceFolders = pkg.ResolveWs(append(s.workspaceFolders, p.WorkspaceFolders...))
 			glog.V(1).Infof("workspaces: %+v", s.workspaceFolders)
 			// Result
 			r := lsp.InitializeResult{

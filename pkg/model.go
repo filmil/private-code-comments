@@ -17,3 +17,8 @@ type PccSet struct {
 }
 
 type PccSetRes struct{}
+
+// Config file is put into the workspace.
+type WorkspaceConfig struct {
+	WorkspaceName string `json:"workspace_name,omitempty"`
+}

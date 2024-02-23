@@ -244,7 +244,7 @@ func BulkMoveAnn(db *sql.DB, workspace, path string, firstLine uint32, delta int
 
 // Schedules a BulkMoveAnn into a transaction.
 func TxBulkMoveAnn(tx *sql.Tx, workspace, path string, firstLine uint32, delta int32) error {
-	glog.V(2).Info("db/TxBulkMoveAnn: ws=%v, path=%v, firstLine=%v, delta=%v",
+	glog.V(2).Infof("db/TxBulkMoveAnn: ws=%q, path=%q, firstLine=%v, delta=%v",
 		workspace, path, firstLine, delta)
 	_, err := tx.Exec(`
 		UPDATE			AnnotationLocations

@@ -94,8 +94,7 @@ local default_opts = {
     -- The file patterns used to determine workspace root.
     root_patterns = {
         ".git",
-        -- From //nvim_testing/content:workspace.marker
-        "workspace.marker",
+        ".pcc.config.json",
     },
 
     -- The file types that the server will apply to.
