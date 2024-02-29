@@ -1,4 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "gazelle")
+load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load("//build:my_package_name.bzl", "name_part_from_command_line")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -22,4 +24,20 @@ filegroup(
 filegroup(
     name = "marker",
     srcs = ["pcc.config.json"],
+)
+
+name_part_from_command_line(
+    name = "name_part_from_command_line",
+    build_setting_default = "@set_me@"
+)
+    
+
+pkg_zip(
+    name = "release",
+    srcs = [
+        "//bin/pcc",
+    ],
+    package_dir = "pcc",
+    package_file_name = "pcc-{name_part}.zip",
+    package_variables = ":name_part_from_command_line"
 )
