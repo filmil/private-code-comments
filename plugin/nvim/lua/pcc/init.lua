@@ -1,3 +1,5 @@
+---Docs here.
+
 local client_name = 'pcc'
 local method_get = '$/pcc/get' -- file, line -> text or ""
 local method_set = '$/pcc/set' -- file, line, text -> (nothing)
@@ -174,15 +176,10 @@ local default_opts = {
     -- Set to something higher than 0 to have the "pcc" binary log verbose
     -- diagnostics.
     log_verbosity = 0,
-
-    -- The default binding to the "add or edit" command.
-    annotate_command = "<leader>cr",
-
-    -- The default binding to the "delete" command.
-    delete_command = "<leader>cd",
 }
 
-function M.setup(opts)
+---Configures the pcc client side, without using lsp-config.
+function M.setup_client(opts)
     M.config = vim.tbl_deep_extend('force', default_opts, opts or {})
     local client = find_client()
     vim.lsp.set_log_level("debug")
@@ -210,18 +207,16 @@ function M.setup(opts)
         end
       }
     )
-
-    vim.keymap.set({'n'}, M.config.annotate_command,
-        function()
-            M.edit()
-        end)
-    vim.keymap.set({'n'}, M.config.delete_command,
-        function()
-            M.delete()
-        end)
 end
 
--- Returns the numeric ID of the buffer with the given name.
+---@deprecated
+function M.setup(opts)
+    M.setup_client(opts)
+end
+
+---Returns the numeric ID of the buffer with the given name.
+---@param name (string)
+---@return (integer|-1)
 local function find_buf_by_name(name)
     local bufs = vim.api.nvim_list_bufs()
     for _, buf_id in ipairs(bufs) do
@@ -278,7 +273,7 @@ function M.edit()
 
     local annotation = get(buf_info)
     local annot_buf, annot_win = create_annot_buf(buf_info, annotation)
-    -- Open buffer in a window, and pass buff info there.
+    -- Open buffer in a window, and pass buf info there.
 end
 
 -- Deletes the note at the current line of the current buffer.  Nothing happens
@@ -289,6 +284,8 @@ function M.delete()
 
 end
 
+---Returns the handler table for the custom methods. These are unused, but
+---must be defined so that we can issue these calls to the server.
 function M.handlers()
     -- Apparently, these are handlers for messages that are sent from the lsp
     -- server to here.  While we don't use them, we must define them so that
@@ -298,6 +295,37 @@ function M.handlers()
         [method_get] = function() end,
         [method_set] = function() end,
     }
+end
+
+---Setup when using with lsp-config plugin.
+---
+---@param opts (table|nil)  LSP-config compatible table, default used if nil.
+---@param client_opts (table|nil)  Client config compatible table
+function M.setup_server_with_lsp_config(opts, client_opts)
+    M.config = vim.tbl_deep_extend('force', default_opts, client_opts or {})
+    local lspconfig = require 'lspconfig'
+    local configs = require 'lspconfig.configs'
+
+    local default_config = vim.tbl_deep_extend('force',
+        {
+            name = 'pcc',
+            cmd = {
+              os.getenv("HOME") .. '/.local/bin/pcc',
+              '--log_dir=' .. os.getenv("HOME") .. '/.local/state/pcc/logs',
+              '--v=3',
+              '--db=' .. os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
+            },
+            root_dir = lspconfig.util.root_pattern({ ".git", "pcc.config.json" }),
+            filetypes = { "text", "lua", "rust", "gn" },
+            handlers = M.handlers(),
+        },
+        opts or {}
+    )
+    if not configs.pcc then
+        configs.pcc = {
+          default_config = default_config,
+        }
+    end
 end
 
 return M
