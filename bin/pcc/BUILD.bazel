@@ -7,17 +7,15 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg",
-        "@com_github_davecgh_go_spew//spew",
         "@com_github_golang_glog//:glog",
         "@com_github_mattn_go_sqlite3//:go-sqlite3",
         "@dev_lsp_go_jsonrpc2//:jsonrpc2",
-        "@dev_lsp_go_protocol//:protocol",
     ],
 )
 
 go_binary(
     name = "pcc",
-    static = "on",
     embed = [":pcc_lib"],
+    static = "on",
     visibility = ["//visibility:public"],
 )

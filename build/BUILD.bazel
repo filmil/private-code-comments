@@ -4,16 +4,15 @@ load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 
 name_part_from_command_line(
     name = "name_part_from_command_line",
-    build_setting_default = "@set_me@"
+    build_setting_default = "@set_me@",
 )
 
 pkg_files(
     name = "release_bin",
     srcs = [
-        "//bin/pcc:pcc",
+        "//bin/pcc",
     ],
     prefix = "lua/pcc/bin",
-
 )
 
 pkg_files(
@@ -22,14 +21,13 @@ pkg_files(
         "//:readme",
     ],
 )
-    
+
 pkg_files(
     name = "release_lua",
     srcs = [
         "//plugin/nvim/lua/pcc:init.lua",
     ],
     prefix = "lua/pcc",
-
 )
 
 pkg_zip(
@@ -41,5 +39,5 @@ pkg_zip(
     ],
     package_dir = "pcc",
     package_file_name = "pcc-{name_part}.zip",
-    package_variables = ":name_part_from_command_line"
+    package_variables = ":name_part_from_command_line",
 )

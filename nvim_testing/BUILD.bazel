@@ -15,7 +15,6 @@ go_library(
         "//pkg",
         "@com_github_golang_glog//:glog",
         "@com_github_neovim_go_client//nvim",
-        "@com_github_neovim_go_client//nvim/plugin",
         "@dev_lsp_go_protocol//:protocol",
     ],
 )
