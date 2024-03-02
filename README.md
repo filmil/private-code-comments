@@ -26,6 +26,38 @@ reading and analyzing a large code base.  If you figure a piece of code out,
 you can write yourself a short note at the point where you did so. The note
 remains available to you for as long as you want.
 
+## Installation
+
+Download the [release archive][rel], and unpack it into the directory
+`$HOME/.config`. This should create a directory `$HOME/.config/pcc` on your
+disk.
+
+[rel]: https://github.com/filmil/private-code-comments/releases
+
+Add the following configuration in your `init.lua`.
+
+```lua
+-- This setup places the private comments plugin into the directory $HOME/.config/pcc.
+require('lspconfig')
+local pcc_dir = os.getenv("HOME") .. "/.config/pcc"
+vim.opt.rtp:prepend(pcc_dir)
+local pcc_plugin = require('pcc')
+
+pcc_plugin.setup_server_with_lsp_config(
+ {}, -- lspconfig settings
+ {
+     pcc_binary = pcc_dir .. "/bin/pcc",
+     log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
+     db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
+     log_verbosity = 3,
+ }
+)
+require('lspconfig').pcc.setup {}
+
+vim.keymap.set({'n'}, '<leader>cr', pcc_plugin.edit, { desc = "[C]omment [R]eview" })
+vim.keymap.set({'n'}, '<leader>cd', pcc_plugin.delete, { desc = "[C]omment [D]elete" })
+```
+
 ### References
 
 This was not built in a vacuum.  Here are some similar projects that I used
@@ -43,74 +75,6 @@ needing to reinvent the presentation of the annotations.
 I also owe gratitude to my colleague Chris, for inspiring me to write this
 little program.
 
-## How to configure neovim to run this LSP.
-
-> I would like to see a more automatic installation in the future. For the time
-> being, this is not the case. 
-
-Download and install the `pcc` binary somewhere in your `$PATH`.
-
-Add the following configuration somewhere in your `init.lua`.
-
-```lua
-local pccpath = vim.fn.stdpath("data") .. "/lazy/pcc"
-vim.opt.rtp:prepend(pccpath)
-require('pcc').setup({
-  -- Set to wherever you installed `pcc`.
-  pcc_binary = os.getenv("HOME") .. "/local/bin/pcc", 
-  -- Set to where you want your annotation database to be.
-  db = os.getenv("HOME) .. "/tmp/pcc/db/db.sqlite",
-  -- Set to where you want your logs to be written.
-  log_dir = os.getenv("HOME) .. "/tmp/pcc/logs",
-  -- Set the file patters you wish to install this server to.
-  file_patterns = { "text" }
-
-  -- Possibly set other options, see the below sections what they are.
-})
-```
-
-### Defaults
-
-Below are the default settings.
-
-```
-local default_opts = {
-    -- The default width of the annotation window.
-    annot_win_width = 25,
-
-    -- The default padding of the annotation window.
-    annot_win_padding = 2,
-
-    -- The directory where logs will be saved.
-    log_dir = os.getenv("PCC_LOG_DIR"),
-
-    -- The path to the `pcc` binary.
-    -- For some reason, using `pcc` will turn off workspacing.
-    pcc_binary = os.getenv("PCC_BINARY") or "pcc",
-
-    -- The path to the SQLITE database where annotations will be stored.
-    db = os.getenv("PCC_DB"),
-
-    -- The file patterns used to determine workspace root.
-    root_patterns = {
-        ".git",
-        "pcc.config.json",
-    },
-
-    -- The file types that the server will apply to.
-    file_patterns = { "text" },
-
-    -- The log verbosity, perhaps keep at a low level.  The higher, the more
-    -- verbose the logs are.
-    log_verbosity = 4,
-
-    -- The default "add or edit" key binding.
-    annotate_command = "<leader>cr",
-
-    -- The default "delete" key binding.
-    delete_command = "<leader>cd",
-}
-```
 
 ## Maintenance
 
@@ -153,24 +117,9 @@ The following tests are implemented:
 * integration tests: the tests covering the interaction with neovim, using
   a hermetic instance of neovim that is brought up with the test fixture.
 
-## Known issues
+## Troubleshooting
 
-These are the issues I'd like to see resolved.
+If all else fails, [file a bug][bug].
 
-* The current plugin is *extremely* janky. I don't yet know enough to
-  understand why. I hope to learn a bit more about Neovim internals so I can
-  fix that.
-
-* Ideally we'd have a `lsp-config` entry for this LSP server too.  There currently
-  isn't one.
-
-* The installation is manual. This should be automated.
-
-* For some reason, the current setup above will kick out any other LSP servers
-  you may want to use. Even though in *theory* it should coexist with whatever
-  servers you may want to use.
-
-* The code could be nicer and better modularized. At least, all the functionality
-  is covered by hermetic tests, so if you find a bug I can fix it and add a
-  regression test**.
+[bug]: https://github.com/filmil/private-code-comments/issues
 

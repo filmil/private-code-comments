@@ -1,4 +1,36 @@
+local function is_win()
+  return package.config:sub(1, 1) == '\\'
+end
+
+local function get_path_separator()
+  if is_win() then
+    return '\\'
+  end
+  return '/'
+end
+
+
+---Returns the path of this script.
+---@return (string)
+local function script_path()
+  local str = debug.getinfo(2, 'S').source:sub(2)
+  if is_win() then
+    str = str:gsub('/', '\\')
+  end
+  return str:match('(.*' .. get_path_separator() .. ')')
+end
+
 ---Docs here.
+
+local function script_path()
+  local str = debug.getinfo(2, 'S').source:sub(2)
+  return str:match('(.*' .. get_path_separator() .. ')')
+end
+
+P = function(thing)
+  print(vim.inspect(thing))
+  return thing
+end
 
 local client_name = 'pcc'
 local method_get = '$/pcc/get' -- file, line -> text or ""
@@ -83,10 +115,7 @@ local function get(buf_info)
     if r["result"] == nil then
         return {}
     end
-    if r["result"]["content"] == nil then
-        return {}
-    end
-    return r["result"]["content"]
+    return r.result.content or {}
 end
 
 local function set(content, buf_info)
@@ -158,7 +187,7 @@ local default_opts = {
     log_dir = os.getenv("PCC_LOG_DIR") or (vim.fn.stdpath("state") .. "/pcc/logs"),
 
     -- This is where to find the PCC binary.
-    pcc_binary = os.getenv("PCC_BINARY") or (vim.fn.stdpath("data") .. "/pcc/pcc"),
+    pcc_binary = os.getenv("PCC_BINARY") or (script_path() .. "/bin/pcc"),
 
     -- Database could be in the local state directory by default.
     db = os.getenv("PCC_DB") or (vim.fn.stdpath("state") .. "/pcc/db/db.sqlite"),
@@ -173,9 +202,13 @@ local default_opts = {
 
     file_patterns = { "text" },
 
+    filetypes = { "text", "lua", "rust", "gn" },
+
     -- Set to something higher than 0 to have the "pcc" binary log verbose
     -- diagnostics.
     log_verbosity = 0,
+
+    autostart = true,
 }
 
 ---Configures the pcc client side, without using lsp-config.
@@ -305,27 +338,25 @@ function M.setup_server_with_lsp_config(opts, client_opts)
     M.config = vim.tbl_deep_extend('force', default_opts, client_opts or {})
     local lspconfig = require 'lspconfig'
     local configs = require 'lspconfig.configs'
-
-    local default_config = vim.tbl_deep_extend('force',
+    local cfg = vim.tbl_deep_extend('force',
         {
             name = 'pcc',
             cmd = {
-              os.getenv("HOME") .. '/.local/bin/pcc',
-              '--log_dir=' .. os.getenv("HOME") .. '/.local/state/pcc/logs',
-              '--v=3',
-              '--db=' .. os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
+              M.config.pcc_binary,
+              '--log_dir=' .. M.config.log_dir,
+              '--v=' .. M.config.log_verbosity,
+              '--db=' .. M.config.db,
             },
-            root_dir = lspconfig.util.root_pattern({ ".git", "pcc.config.json" }),
-            filetypes = { "text", "lua", "rust", "gn" },
+            root_dir = lspconfig.util.root_pattern(M.config.root_patterns),
+            filetypes = M.config.filetypes,
             handlers = M.handlers(),
+            autostart = M.autostart,
         },
         opts or {}
     )
-    if not configs.pcc then
-        configs.pcc = {
-          default_config = default_config,
-        }
-    end
+    configs.pcc = configs.pcc or {
+        default_config = cfg,
+    }
 end
 
 return M
