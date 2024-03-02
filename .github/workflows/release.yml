@@ -27,4 +27,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           allowUpdates: true
-          artifacts: "bazel-bin/pcc-${{ matrix.os }}-${{ matrix.arch }}.zip"
+          artifacts: "bazel-bin/build/pcc-${{ matrix.os }}-${{ matrix.arch }}.zip"
