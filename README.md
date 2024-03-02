@@ -58,6 +58,25 @@ vim.keymap.set({'n'}, '<leader>cr', pcc_plugin.edit, { desc = "[C]omment [R]evie
 vim.keymap.set({'n'}, '<leader>cd', pcc_plugin.delete, { desc = "[C]omment [D]elete" })
 ```
 
+## Usage
+
+### Adding or editing a comment.
+
+Press the key combination for "Comment Review". A small annotation window
+appears, where you can write your comment.
+
+Once you are done writing the comment, pressing `q` in normal mode closes
+the annotation window, and shows the comment as a hint on the line where the
+cursor was.
+
+If you do this on a line that already has a comment, the annotation window will
+load the current comment.
+
+### Deleting a comment.
+
+Press the key combination for "Comment Delete". The comment will be deleted on
+the line if it exists.  Nothing changes if there is no comment to be deleted.
+
 ### References
 
 This was not built in a vacuum.  Here are some similar projects that I used
