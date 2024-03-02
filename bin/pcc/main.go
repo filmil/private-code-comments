@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"path"
 
 	"github.com/filmil/private-code-comments/pkg"
 	"github.com/golang/glog"
@@ -46,6 +47,14 @@ func main() {
 			glog.Fatalf("could not remove socket: %v", err)
 		}
 		// If the file does not exist, we're done here.
+	}
+
+	if dbFilename != pkg.DefaultFilename {
+		if err := pkg.MakeAllDirs(path.Base(dbFilename)); err != nil {
+			glog.Fatalf("could not make directories for: %v: %v", dbFilename, err)
+		}
+	} else {
+		glog.V(3).Infof("not making a directory for: %v", dbFilename)
 	}
 
 	needsInit, err := pkg.CreateDBFile(dbFilename)
