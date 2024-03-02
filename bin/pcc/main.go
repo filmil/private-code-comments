@@ -95,6 +95,16 @@ func main() {
 	glog.Infof("exiting program")
 }
 
+// DiagnosticMsg contains the message sent to the diagnostic handler.
+type DiagnosticMsg struct {
+	// The URI of the file to refresh.
+	URI lsp.URI
+
+	// If set, the diagnostics are always updated. When unset, the Diagnostic
+	// update is allowed to skip some updates.
+	Force bool
+}
+
 type Server struct {
 	// For sending notifications.
 	conn jsonrpc2.Conn
@@ -110,7 +120,7 @@ type Server struct {
 
 	// Closed when the initialized message is sent.
 	initialized     chan struct{}
-	diagnosticQueue chan lsp.URI
+	diagnosticQueue chan DiagnosticMsg
 	globalCtx       context.Context
 	db              *sql.DB
 	cancel          context.CancelFunc
@@ -133,7 +143,7 @@ func NewServer(ctx context.Context, db *sql.DB, conn jsonrpc2.Conn) (*Server, er
 	s := Server{
 		// The queue capacity needs to be a little bit large, since the processing function
 		// may add to it.
-		diagnosticQueue: make(chan lsp.URI, 10),
+		diagnosticQueue: make(chan DiagnosticMsg, 10),
 		initialized:     make(chan struct{}, 1),
 		globalCtx:       ctx,
 		db:              db,
@@ -207,24 +217,27 @@ func (s *Server) DiagnosticsFn() {
 		select {
 		case <-s.globalCtx.Done():
 			break
-		case uri := <-s.diagnosticQueue:
-			glog.V(1).Infof("queue: %q", uri)
+		case q := <-s.diagnosticQueue:
+			uri := q.URI
+			glog.V(1).Infof("diagnosticFn: command: %+v", q)
 			ws, rpath := s.FindWorkspace(uri)
 			glog.V(4).Infof("Operating on ws=%q, path=%q for: %v", ws, rpath, uri)
 			anns, err := pkg.GetAnns(s.db, ws, rpath)
 			if err != nil {
 				glog.Errorf("error getting annotations: workspace=%v, file=%v: %v", ws, rpath, err)
 			}
-			if len(anns) == 0 {
+			if len(anns) == 0 && !q.Force {
 				glog.V(1).Infof("DiagnosticsFn: nothing to publish.")
 				continue
 			}
-			var d []lsp.Diagnostic
+			// This will delete diagnostics when not present.
+			d := []lsp.Diagnostic{}
 			for _, a := range anns {
 				d = append(d, MakeDiagnostic(
 					LineRange{Start: a.Line, End: a.Line + 1}, a.Content))
 			}
 			p := lsp.PublishDiagnosticsParams{URI: uri, Diagnostics: d}
+			glog.V(2).Infof("publishing diagnostics: %s", spew.Sdump(p))
 			if err := s.conn.Notify(
 				ctx, lsp.MethodTextDocumentPublishDiagnostics, &p); err != nil {
 				glog.Errorf("DiagnosticsFn: error while publishing diagnostics for: %v: %v", uri, err)
@@ -268,7 +281,7 @@ func (s *Server) MoveAnnotations(ctx context.Context, lr LineRange, delta int32,
 	}
 
 	glog.V(1).Info("refresh diagnostics.")
-	s.diagnosticQueue <- uri
+	s.diagnosticQueue <- DiagnosticMsg{URI: uri}
 	return nil
 }
 
@@ -321,12 +334,14 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			glog.V(3).Infof(PccSetCmd+": Request: %v", spew.Sdump(p)) // This is expensive.
 			ws, rpath := pkg.FindWorkspace(s.workspaceFolders, p.File)
 			content := strings.Join(p.Content, "\n")
+			force := false
 			if content == "" {
 				if err := pkg.DeleteAnn(s.db, ws, rpath, p.Line); err != nil {
 					err := fmt.Errorf("could not delete: %+v: %w", p, err)
 					glog.V(1).Infof(PccSetCmd+": error: %v", err)
 					return err
 				}
+				force = true
 			} else {
 				// Update.
 				if err := pkg.InsertAnn(s.db, ws, rpath, p.Line, content); err != nil {
@@ -336,7 +351,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 				}
 			}
 			reply(ctx, pkg.PccSetRes{}, nil)
-			s.diagnosticQueue <- p.File
+			s.diagnosticQueue <- DiagnosticMsg{URI: p.File, Force: force}
 
 		case lsp.MethodTextDocumentDidSave:
 			var p lsp.DidSaveTextDocumentParams
@@ -351,7 +366,7 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 			}
 			glog.V(1).Infof("didOpen: Request: %v", spew.Sdump(p)) // This is expensive.
 			s.count++
-			s.diagnosticQueue <- p.TextDocument.URI
+			s.diagnosticQueue <- DiagnosticMsg{URI: p.TextDocument.URI}
 
 		case lsp.MethodTextDocumentDidChange:
 			var p lsp.DidChangeTextDocumentParams

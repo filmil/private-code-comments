@@ -153,3 +153,43 @@ func TestGetLine(t *testing.T) {
 
 	n.Command("quit")
 }
+
+func TestDeleteSingletonLine(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	tmpDir := BazelTmpDir(t)
+	dbFile := path.Join(tmpDir, dbName(t))
+
+	db, closeFn := pkg.Must3(RunDBQuery(dbFile, ``))
+	defer closeFn()
+
+	pkg.Must1(pkg.InsertAnn(db, string(ws), testFilename, 10, "hello!"))
+	n := pkg.Must(NewNeovim(dbFile))
+
+	c := pkg.Must(GetLspAttachEvent(n, "*"))
+
+	pkg.Must1(EditFile(n, NotEmpty(*editFile)))
+
+	<-c
+
+	buf := pkg.Must(n.CurrentBuffer())
+
+	// Ensure there are annotations.
+	pkg.Must1(WaitForLine(ctx, n, buf, 0, "     1\tSome text."))
+	pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{
+		{Line: 10, Content: "hello!"},
+	}))
+
+	pkg.Must1(MoveToLine(n, 10))
+	note1 := pkg.Must(GetComment(n))
+	if note1 != "hello!" {
+		t.Errorf("expected note, but found: %q", note1)
+	}
+	pkg.Must1(DeleteCommentAtCurrentLine(n))
+	pkg.Must1(WaitForAnns(ctx, db, ws, testFilename, []pkg.Ann{}))
+	note := pkg.Must(GetComment(n))
+	if note != "" {
+		t.Errorf("expected no note, but found: %q", note)
+	}
+}

@@ -311,6 +311,14 @@ func EditFile(cl *nvim.Nvim, filename string) error {
 	return cl.Command(fmt.Sprintf("edit %s", filename))
 }
 
+func MoveToLine(cl *nvim.Nvim, line int) error {
+	w, err := cl.CurrentWindow()
+	if err != nil {
+		return fmt.Errorf("could not get current window: %w", err)
+	}
+	return cl.SetWindowCursor(w, [2]int{line + 1, 1})
+}
+
 // GetComment gets a comment for current line of text.
 func GetComment(cl *nvim.Nvim) (string, error) {
 	var (
@@ -338,6 +346,10 @@ func GetComment(cl *nvim.Nvim) (string, error) {
 
 	}
 	return strings.Join(ls, "\n"), nil
+}
+
+func DeleteCommentAtCurrentLine(cl *nvim.Nvim) error {
+	return SetComment(cl, "")
 }
 
 // SetComment sets a comment for current line of text.
