@@ -21,6 +21,8 @@ import (
 func main() {
 	// Set up glogging
 	defer func() {
+		// Tries to flush any logging buffers before exiting. This allows us
+		// to capture more log output than without it.
 		glog.Flush()
 		glog.Exit()
 	}()
@@ -33,7 +35,6 @@ func main() {
 	)
 
 	// Set up flags
-
 	flag.StringVar(&dbFilename,
 		"db", pkg.DefaultFilename, "The file name for the private comments")
 	flag.StringVar(&socketFile,
@@ -81,26 +82,16 @@ func main() {
 		}
 	}
 
-	// Some dummy operations for the time being.
-
-	// get SQLite version
-	r := db.QueryRow("select sqlite_version()")
-	var dbVer string
-	if err := r.Scan(&dbVer); err != nil {
-		glog.Fatalf("could not read db version: %v: %v", dbFilename, err)
+	if err := Serve(socketFile, db); err != nil {
+		glog.Errorf("error while serving: %v", err)
 	}
-	glog.Infof("sqlite3 version: %v: %v", dbFilename, dbVer)
-
-	var id jsonrpc2.ID
-
-	glog.Infof("JSON-RPC2 id: %v", id)
-
-	Serve(socketFile, db)
-
 	glog.Infof("exiting program")
 }
 
+// StdioConn is a connection that uses stdin for input, and stdout for output.
 type StdioConn struct{}
+
+var _ io.ReadWriteCloser = (*StdioConn)(nil)
 
 // Close implements io.ReadWriteCloser.
 func (*StdioConn) Close() error {
@@ -117,30 +108,24 @@ func (*StdioConn) Write(p []byte) (n int, err error) {
 	return os.Stdout.Write(p)
 }
 
-var _ io.ReadWriteCloser = (*StdioConn)(nil)
+// Serve serves LSP on socketName, using the database `db`.
+//
+// If socketName is the special constant `pkg.DefaultSocket`, then LSP is
+// served on a socket created by joining stdin/stdout, as LSP servers usually
+// do.
+func Serve(socketName string, db *sql.DB) error {
+	glog.Infof("listening for a connection at: %v", socketName)
 
-func Serve(f string, db *sql.DB) error {
-	glog.Infof("listening for a connection at: %v", f)
-
-	if f == pkg.DefaultSocket {
-		// Use a ReadWriteCloser from stdio and stout.
-		jc := jsonrpc2.NewConn(jsonrpc2.NewStream(&StdioConn{}))
-		ctx := context.Background()
-		s, err := pkg.NewServer(ctx, db, jc)
-		if err != nil {
-			return fmt.Errorf("could not create server: %w", err)
-		}
-		srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
-		if err := srv.ServeStream(ctx, jc); err != nil {
-			if !errors.Is(err, pkg.ExitError) {
-				glog.Infof("error while serving request: %v", err)
-				return err
-			}
+	if socketName == pkg.DefaultSocket {
+		// Use a ReadWriteCloser from stdin and stdout.
+		stream := jsonrpc2.NewStream(&StdioConn{})
+		if err := ServeSingleConn(db, stream); err != nil {
+			glog.Infof("error while serving a signle request: %v", err)
 		}
 	} else {
-		l, err := net.Listen("unix", f)
+		l, err := net.Listen("unix", socketName)
 		if err != nil {
-			return fmt.Errorf("could not listen to socket: %v: %v", f, err)
+			return fmt.Errorf("could not listen to socket: %v: %v", socketName, err)
 		}
 		defer l.Close()
 		for {
@@ -150,23 +135,39 @@ func Serve(f string, db *sql.DB) error {
 			}
 
 			// Create a json connection
-			jc := jsonrpc2.NewConn(jsonrpc2.NewStream(c))
-
-			ctx := context.Background()
-
-			s, err := pkg.NewServer(ctx, db, jc)
-			if err != nil {
-				return fmt.Errorf("could not create server: %w", err)
-			}
-			srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
-			// Probably needs to be in a separate goroutine, this.
-			if err := srv.ServeStream(ctx, jc); err != nil {
-				glog.Infof("error while serving request: %v", err)
-				if errors.Is(err, pkg.ExitError) {
+			stream := jsonrpc2.NewStream(c)
+			if err := ServeSingleConn(db, stream); err != nil {
+				if !errors.Is(err, pkg.ExitError) {
+					glog.Infof("error: %v", err)
+				} else {
+					// With pkg.ExitError, we exit the loop and are done.
 					break
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// ServeSingleConn serves a single JSON-RPC2 connection on `stream`, using `db`
+// as the source of annotations.
+//
+// A special error `pkg.ExitError` means that an exit is requested.  `nil` means
+// no error, and the caller may try to repeat serving.
+func ServeSingleConn(db *sql.DB, stream jsonrpc2.Stream) error {
+	jc := jsonrpc2.NewConn(stream)
+	ctx := context.Background()
+	s, err := pkg.NewServer(ctx, db, jc)
+	if err != nil {
+		return fmt.Errorf("could not create server: %w", err)
+	}
+	srv := jsonrpc2.HandlerServer(s.GetHandlerFunc())
+	if err := srv.ServeStream(ctx, jc); err != nil {
+		glog.Infof("error while serving request: %v", err)
+		if !errors.Is(err, pkg.ExitError) {
+			return fmt.Errorf("error while serving request: %w", err)
+		}
+		return err
 	}
 	return nil
 }

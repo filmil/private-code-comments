@@ -60,7 +60,7 @@ vim.keymap.set({'n'}, '<leader>cd', pcc_plugin.delete, { desc = "[C]omment [D]el
 
 ## Usage
 
-### Adding or editing a comment.
+### Adding or editing a comment
 
 Press the key combination for "Comment Review". A small annotation window
 appears, where you can write your comment.
@@ -72,12 +72,29 @@ cursor was.
 If you do this on a line that already has a comment, the annotation window will
 load the current comment.
 
-### Deleting a comment.
+### Deleting a comment
 
 Press the key combination for "Comment Delete". The comment will be deleted on
 the line if it exists.  Nothing changes if there is no comment to be deleted.
 
-### References
+### Naming a workspace
+
+Putting a file named `pcc.config.json` in the desired workspace root directory
+allows you to give the name to the workspace. This makes all comments for that
+workspace rooted at the location of the file, and makes all files be saved
+in that workspace:
+
+```
+{
+  "workspace_name": "some_name"
+}
+```
+
+You can add the `pcc.config.json` in your global `.gitignore` file so that you can
+place it in your project directories. This allows sharing comments if you so
+choose.
+
+## References
 
 This was not built in a vacuum.  Here are some similar projects that I used
 as inspiration.
@@ -93,7 +110,6 @@ needing to reinvent the presentation of the annotations.
 
 I also owe gratitude to my colleague Chris, for inspiring me to write this
 little program.
-
 
 ## Maintenance
 

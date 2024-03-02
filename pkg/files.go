@@ -25,7 +25,7 @@ func RPath(ws string, fileURI lsp.URI) string {
 	return strings.TrimPrefix(string(fileURI), ws)
 }
 
-// Finds the workspace that the file with uri URI belongs to.
+// FindWorkspace findss the workspace that the file with uri URI belongs to.
 // Returns the workspace URI encoded as string, and the relative
 // path for the provided file.
 //
@@ -53,6 +53,8 @@ func FindWorkspace(w []lsp.WorkspaceFolder, fileURI lsp.URI) (string, string) {
 	return pWs, pFile
 }
 
+// ConfigFilename is the file name that, if found in the workspace, is used to
+// name the workspace.
 const ConfigFilename = `pcc.config.json`
 
 // ResolveWs resolves the workspace names, potentially using the marker config

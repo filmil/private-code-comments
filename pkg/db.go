@@ -14,10 +14,13 @@ import (
 )
 
 const (
+	// Pragmas are used to initialize an in-memory database. Useful for tests.
 	Pragmas = `?cache=shared&mode=memory`
 	// For the time being, use an in-memory database.
 	DefaultFilename = `file:test.db` + Pragmas
-	DefaultSocket   = `:stdstream:`
+	// This socket name causes using stdin/stdout instead of a specific unix
+	// domain socket.
+	DefaultSocket = `:stdstream:`
 )
 
 const (
@@ -50,12 +53,16 @@ const (
 		COMMIT;`
 )
 
+// Must1 panics if the error is not nil. Used to wrap functions returning error
+// to force simplify error handling.
 func Must1(err error) {
 	if err != nil {
 		panic(fmt.Sprintf("Must1: error: %v", err))
 	}
 }
 
+// Must panics if the error is not nil. Used to wrap functions returning error
+// to force simplify error handling.
 func Must[T any](v T, err error) T {
 	if err != nil {
 		panic(fmt.Sprintf("Must error: %v", err))
@@ -63,6 +70,8 @@ func Must[T any](v T, err error) T {
 	return v
 }
 
+// Must3 panics if the error is not nil. Used to wrap functions returning error
+// to force simplify error handling.
 func Must3[T any, V any](t T, v V, err error) (T, V) {
 	if err != nil {
 		panic(fmt.Sprintf("Must3: error: %v", err))
@@ -71,7 +80,9 @@ func Must3[T any, V any](t T, v V, err error) (T, V) {
 }
 
 // CreateDBFile creates an empty database file at the given name.
-// Returns true if the database needs to be initialized.
+//
+// Returns true if the database needs to be initialized, e.g. if an empty
+// file without a schema was created.
 func CreateDBFile(dbFilename string) (bool, error) {
 	var needsInit bool
 	if dbFilename == DefaultFilename {
@@ -98,9 +109,11 @@ func CreateDBFile(dbFilename string) (bool, error) {
 	return needsInit, nil
 }
 
+// CreateDBSchema creates the data schema used in this program in an empty
+// database db.
 func CreateDBSchema(db *sql.DB) error {
 	if err := CreateSchema(db); err != nil {
-		return fmt.Errorf("could not create: %v", err)
+		return fmt.Errorf("could not create: %w", err)
 	}
 	return nil
 }
@@ -142,8 +155,8 @@ func CreateSchema(db *sql.DB) error {
 			);
 
 		COMMIT;`
-	Must(db.Exec(createStatementStr))
 
+	Must(db.Exec(createStatementStr))
 	return nil
 }
 
@@ -210,11 +223,13 @@ func MoveAnn(db *sql.DB, workspace, path string, line uint32, newPath string, ne
 					Line = ?
 	;`, newPath, newLine, workspace, path, line)
 	if err != nil {
-		return fmt.Errorf("could not move: workspace=%v, path=%v, line=%v: %w", workspace, path, line, err)
+		return fmt.Errorf("could not move: workspace=%v, path=%v, line=%v: %w",
+			workspace, path, line, err)
 	}
 	ra, err := r.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("could not get rows affected: workspace=%v, path=%v, line=%v: %w", workspace, path, line, err)
+		return fmt.Errorf("could not get rows affected: workspace=%v, path=%v, line=%v: %w",
+			workspace, path, line, err)
 	}
 	if ra != 1 {
 		return fmt.Errorf("should affect exactly one row, but affected: %v", ra)
@@ -242,7 +257,7 @@ func BulkMoveAnn(db *sql.DB, workspace, path string, firstLine uint32, delta int
 	return nil
 }
 
-// Schedules a BulkMoveAnn into a transaction.
+// TxBulkMoveAnn schedules a BulkMoveAnn into a transaction.
 func TxBulkMoveAnn(tx *sql.Tx, workspace, path string, firstLine uint32, delta int32) error {
 	glog.V(2).Infof("db/TxBulkMoveAnn: ws=%q, path=%q, firstLine=%v, delta=%v",
 		workspace, path, firstLine, delta)
@@ -392,10 +407,13 @@ func GetAnn(db *sql.DB, workspace, path string, line uint32) (string, error) {
 
 // A single annotation
 type Ann struct {
-	Line    uint32
+	// Line is the 0-based line index of the line where the annotation is.
+	Line uint32
+	// Content is the string content of the annotation.
 	Content string
 }
 
+// GetRawAnns gets all the annotations from the database.
 func GetRawAnns(db *sql.DB) ([]Ann, error) {
 	ret := []Ann{}
 	r, err := db.Query(`
