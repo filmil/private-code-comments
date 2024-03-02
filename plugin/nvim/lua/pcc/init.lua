@@ -79,7 +79,7 @@ local function get(buf_info)
         return {
             err = {
                 code = 43,
-                message = "no pcc client was found",
+                message = "no pcc client was found - did it even start?",
             }
         }
     end
@@ -105,17 +105,37 @@ local function get(buf_info)
         file = string.format("file://%s", parent_buf_path),
         line = cursor_line,
     }, 100, parent_buf)
-    if r == nil then
-        return {}
+    if not r then
+        return {
+            err = {
+                code = 45,
+                message = "no response received at all",
+            }
+        }
     end
-    if r["err"] ~= nil then
-        -- Log stuff here and below.
-        return {}
+    if r.err then
+        return {
+            err = {
+                code = 47,
+                message = "RPC returned an error - see 'data' for details",
+                data = r,
+            }
+        }
     end
-    if r["result"] == nil then
-        return {}
+    if not r.result then
+        return {
+            err = {
+                code = 46,
+                message = "no result and no error either - how?",
+            }
+        }
     end
-    return r.result.content or {}
+    return r.result.content or {
+        err = {
+            code = 44,
+            message = "no content found - this is not supposed to happen",
+        }
+    }
 end
 
 local function set(content, buf_info)
@@ -133,7 +153,7 @@ local function set(content, buf_info)
         bufnr = parent_buf,
     })[1] -- is this correct?
 
-    if client == nil then
+    if not client then
         local err_msg = string.format(
             "pcc: client: name=%s; bufnr=%d; line=%d; path=%s, bufs=%s",
                 client_name, parent_buf, cursor_line, parent_buf_path, buffers)
@@ -141,7 +161,7 @@ local function set(content, buf_info)
         -- I was right.
         return {
             err = {
-                code = 44,
+                code = 48,
                 message = err_msg,
             }
         }
@@ -157,7 +177,6 @@ local M = {
     get_comment = get,
     set_comment = set,
 }
-
 
 local function create_annot_win(annot_buf, cursor_ln, extmark_parent_win, win_width, padding)
     local annot_win = vim.api.nvim_open_win(annot_buf, true, {
@@ -305,6 +324,12 @@ function M.edit()
     local buf_info = get_current_buf_info()
 
     local annotation = get(buf_info)
+    if annotation.err and not annotation.msg then
+        local e = annotation.err
+        error(string.format("E%d: %s", e.code, e.message))
+        return
+    end
+
     local annot_buf, annot_win = create_annot_buf(buf_info, annotation)
     -- Open buffer in a window, and pass buf info there.
 end
@@ -340,12 +365,12 @@ function M.setup_server_with_lsp_config(opts, client_opts)
     local configs = require 'lspconfig.configs'
     local cfg = vim.tbl_deep_extend('force',
         {
-            name = 'pcc',
+            name = "pcc",
             cmd = {
-              M.config.pcc_binary,
-              '--log_dir=' .. M.config.log_dir,
-              '--v=' .. M.config.log_verbosity,
-              '--db=' .. M.config.db,
+                M.config.pcc_binary,
+                '--log_dir=' .. M.config.log_dir,
+                '--v=' .. M.config.log_verbosity,
+                '--db=' .. M.config.db,
             },
             root_dir = lspconfig.util.root_pattern(M.config.root_patterns),
             filetypes = M.config.filetypes,
@@ -356,6 +381,43 @@ function M.setup_server_with_lsp_config(opts, client_opts)
     )
     configs.pcc = configs.pcc or {
         default_config = cfg,
+        docs = {
+            description = [[
+https://github.com/filmil/private-code-comments
+
+## Installation
+
+Download the [release archive][rel], and unpack it into the directory
+`$HOME/.config`. This should create a directory `$HOME/.config/pcc` on your
+disk.
+
+[rel]: https://github.com/filmil/private-code-comments/releases
+
+Add the following configuration in your `init.lua`.
+
+```lua
+-- This setup places the private comments plugin into the directory $HOME/.config/pcc.
+require('lspconfig')
+local pcc_dir = os.getenv("HOME") .. "/.config/pcc"
+vim.opt.rtp:prepend(pcc_dir)
+local pcc_plugin = require('pcc')
+
+pcc_plugin.setup_server_with_lsp_config(
+ {}, -- lspconfig settings
+ {
+     pcc_binary = pcc_dir .. "/bin/pcc",
+     log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
+     db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
+     log_verbosity = 3,
+ }
+)
+require('lspconfig').pcc.setup {}
+
+vim.keymap.set({'n'}, '<leader>cr', pcc_plugin.edit, { desc = "[C]omment [R]eview" })
+vim.keymap.set({'n'}, '<leader>cd', pcc_plugin.delete, { desc = "[C]omment [D]elete" })
+```
+        ]],
+        },
     }
 end
 
