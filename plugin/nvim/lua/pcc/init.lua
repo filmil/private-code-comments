@@ -79,7 +79,8 @@ local function get(buf_info)
         return {
             err = {
                 code = 43,
-                message = "no pcc client was found - did it even start?",
+                message = string.format(
+                    "no pcc client was found: buf=%d - did it even start?", parent_buf),
             }
         }
     end
