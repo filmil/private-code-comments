@@ -1,35 +1,33 @@
+---Returns true if running under Windows.
 local function is_win()
-  return package.config:sub(1, 1) == '\\'
+    return package.config:sub(1, 1) == '\\'
 end
 
+---Returns
+---the
+---system
+---path
+---separator
 local function get_path_separator()
-  if is_win() then
-    return '\\'
-  end
-  return '/'
+    if is_win() then
+        return '\\'
+    end
+    return '/'
 end
-
 
 ---Returns the path of this script.
 ---@return (string)
 local function script_path()
-  local str = debug.getinfo(2, 'S').source:sub(2)
-  if is_win() then
-    str = str:gsub('/', '\\')
-  end
-  return str:match('(.*' .. get_path_separator() .. ')')
-end
-
----Docs here.
-
-local function script_path()
-  local str = debug.getinfo(2, 'S').source:sub(2)
-  return str:match('(.*' .. get_path_separator() .. ')')
+    local str = debug.getinfo(2, 'S').source:sub(2)
+    if is_win() then
+        str = str:gsub('/', '\\')
+    end
+    return str:match('(.*' .. get_path_separator() .. ')')
 end
 
 P = function(thing)
-  print(vim.inspect(thing))
-  return thing
+    print(vim.inspect(thing))
+    return thing
 end
 
 local client_name = 'pcc'
@@ -157,7 +155,7 @@ local function set(content, buf_info)
     if not client then
         local err_msg = string.format(
             "pcc: client: name=%s; bufnr=%d; line=%d; path=%s, bufs=%s",
-                client_name, parent_buf, cursor_line, parent_buf_path, buffers)
+            client_name, parent_buf, cursor_line, parent_buf_path, buffers)
         -- I bet this will be the mysterious error...
         -- I was right.
         return {
@@ -237,28 +235,28 @@ function M.setup_client(opts)
     local client = find_client()
     vim.lsp.set_log_level("debug")
     vim.api.nvim_create_autocmd(
-      { "FileType" },
-      {
-        pattern = M.config.file_patterns,
-        nested = true,
-        callback = function()
-          if client ~= nil then
-            return
-          end
-          vim.lsp.start({
-            cmd = {
-                M.config.pcc_binary,
-                "--log_dir=" .. M.config.log_dir,
-                "--v=" .. string.format("%d", M.config.log_verbosity),
-                "--db=" .. M.config.db,
-            },
-            root_dir = vim.fs.dirname(
-              vim.fs.find(M.config.root_patterns,
-              { upward = true })[1]),
-            handlers = M.handlers(),
-          })
-        end
-      }
+        { "FileType" },
+        {
+            pattern = M.config.file_patterns,
+            nested = true,
+            callback = function()
+                if client ~= nil then
+                    return
+                end
+                vim.lsp.start({
+                    cmd = {
+                        M.config.pcc_binary,
+                        "--log_dir=" .. M.config.log_dir,
+                        "--v=" .. string.format("%d", M.config.log_verbosity),
+                        "--db=" .. M.config.db,
+                    },
+                    root_dir = vim.fs.dirname(
+                        vim.fs.find(M.config.root_patterns,
+                            { upward = true })[1]),
+                    handlers = M.handlers(),
+                })
+            end
+        }
     )
 end
 
@@ -398,24 +396,53 @@ Add the following configuration in your `init.lua`.
 
 ```lua
 -- This setup places the private comments plugin into the directory $HOME/.config/pcc.
-require('lspconfig')
 local pcc_dir = os.getenv("HOME") .. "/.config/pcc"
 vim.opt.rtp:prepend(pcc_dir)
 local pcc_plugin = require('pcc')
 
-pcc_plugin.setup_server_with_lsp_config(
- {}, -- lspconfig settings
- {
-     pcc_binary = pcc_dir .. "/bin/pcc",
-     log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
-     db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
-     log_verbosity = 3,
- }
+pcc_plugin.setup_server_with_lsp_config({},
+                {
+                                pcc_binary = os.getenv("HOME") .. "/.local/bin/pcc",
+                                log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
+                                db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
+                                log_verbosity = 3,
+                                filetypes = {
+                                                "bzl",
+                                                "c",
+                                                "cpp",
+                                                "gn",
+                                                "go",
+                                                "lua",
+                                                "markdown",
+                                                "python",
+                                                "rust",
+                                                "text",
+                                },
+                                autostart = true,
+                }
 )
 require('lspconfig').pcc.setup {}
 
-vim.keymap.set({'n'}, '<leader>cr', pcc_plugin.edit, { desc = "[C]omment [R]eview" })
-vim.keymap.set({'n'}, '<leader>cd', pcc_plugin.delete, { desc = "[C]omment [D]elete" })
+vim.api.nvim_create_autocmd("LspAttach", {
+                group = vim.api.nvim_create_augroup("PrivateCodeComments", {}),
+                callback = function(ev)
+                                -- Only create the key mappings when a LSP server attaches
+                                -- to the buffer, and then only for the "pcc" client.
+                                local clients = vim.lsp.get_clients({})
+                                P(ev)
+                                if clients and clients[1] then
+                                                vim.keymap.set(
+                                                                {'n'}, '<leader>cr', pcc_plugin.edit, {
+                                                                                desc = "[C]omment [R]eview"
+                                                                })
+                                                vim.keymap.set(
+                                                                {'n'}, '<leader>cd', pcc_plugin.delete, {
+                                                                                desc = "[C]omment [D]elete"
+                                                                })
+                                end
+                end,
+})
+
 ```
         ]],
         },
