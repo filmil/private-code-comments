@@ -4,6 +4,7 @@ load(":macros.bzl", "nvim_go_test")
 package(default_visibility = ["//visibility:public"])
 
 go_library(
+    testonly = True,
     name = "nvim_testing",
     srcs = [
         "neovim.go",
@@ -13,6 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg",
+        "//tc",
         "@com_github_golang_glog//:glog",
         "@com_github_neovim_go_client//nvim",
         "@dev_lsp_go_protocol//:protocol",

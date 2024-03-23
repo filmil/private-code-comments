@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/filmil/private-code-comments/tc"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -500,11 +501,11 @@ func TestAddConcat(t *testing.T) {
 				TMust1(t, InsertAnn(db, "ws", "path", i.Line, i.Content))
 			}
 
-			tx := Must(db.Begin())
-			Must(addConcat(tx, "ws", "path", test.firstLine, test.lastLine))
+			tx := tc.Must(db.Begin())
+			tc.Must(addConcat(tx, "ws", "path", test.firstLine, test.lastLine))
 			TMust1(t, tx.Commit())
 
-			anns := Must(GetRawAnns(db))
+			anns := tc.Must(GetRawAnns(db))
 			if reflect.DeepEqual(anns, test.expected) == false {
 				t.Errorf("\n\twant: %+v\n\tgot : %+v", test.expected, anns)
 			}
@@ -576,7 +577,7 @@ func TestTxBulkAppendAnn(t *testing.T) {
 				TMust1(t, InsertAnn(db, "ws", "path", i.Line, i.Content))
 			}
 
-			tx := Must(db.Begin())
+			tx := tc.Must(db.Begin())
 			TMust1(t, TxBulkAppendAnn(tx, "ws", "path", test.firstLine, test.lastLine, test.delta))
 			TMust1(t, tx.Commit())
 

@@ -27,6 +27,7 @@ go_test(
     ],
     embed = [":pkg"],
     deps = [
+        "//tc",
         "@com_github_mattn_go_sqlite3//:go-sqlite3",
         "@dev_lsp_go_protocol//:protocol",
     ],

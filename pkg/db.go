@@ -53,32 +53,6 @@ const (
 		COMMIT;`
 )
 
-// Must1 panics if the error is not nil. Used to wrap functions returning error
-// to force simplify error handling.
-func Must1(err error) {
-	if err != nil {
-		panic(fmt.Sprintf("Must1: error: %v", err))
-	}
-}
-
-// Must panics if the error is not nil. Used to wrap functions returning error
-// to force simplify error handling.
-func Must[T any](v T, err error) T {
-	if err != nil {
-		panic(fmt.Sprintf("Must error: %v", err))
-	}
-	return v
-}
-
-// Must3 panics if the error is not nil. Used to wrap functions returning error
-// to force simplify error handling.
-func Must3[T any, V any](t T, v V, err error) (T, V) {
-	if err != nil {
-		panic(fmt.Sprintf("Must3: error: %v", err))
-	}
-	return t, v
-}
-
 // CreateDBFile creates an empty database file at the given name.
 //
 // Returns true if the database needs to be initialized, e.g. if an empty
@@ -156,7 +130,10 @@ func CreateSchema(db *sql.DB) error {
 
 		COMMIT;`
 
-	Must(db.Exec(createStatementStr))
+	_, err := db.Exec(createStatementStr)
+	if err != nil {
+		return fmt.Errorf("could not create: %w", err)
+	}
 	return nil
 }
 
@@ -170,15 +147,27 @@ func CreateSchema(db *sql.DB) error {
 //     "file://dir/file.txt", then path should be "/file.txt".
 func InsertAnn(db *sql.DB, workspace, path string, line uint32, text string) error {
 	glog.V(2).Infof("db/InsertAnn: ws=%v, path=%v, line=%v", workspace, path, line)
-	tx := Must(db.Begin())
-	r := Must(db.Exec(`INSERT INTO Annotations(Content) VALUES (?);`, text))
-	id := Must(r.LastInsertId())
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("could not start transaction: %w", err)
+	}
+	r, err := db.Exec(`INSERT INTO Annotations(Content) VALUES (?);`, text)
+	if err != nil {
+		return fmt.Errorf("could not exec: %w", err)
+	}
+	id, err := r.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("could not get last insert ID: %w", err)
+	}
 	const insertAnnLocStmtStr = `
 		INSERT INTO AnnotationLocations(Workspace, Path, Line, AnnId) VALUES (?, ?, ?, ?)
         ON CONFLICT(Workspace, Path, Line)
         DO UPDATE SET AnnId=?
 		;`
-	r = Must(db.Exec(insertAnnLocStmtStr, workspace, path, line, id, id))
+	r, err = db.Exec(insertAnnLocStmtStr, workspace, path, line, id, id)
+	if err != nil {
+		return fmt.Errorf("could not exec statement: %w", err)
+	}
 	return tx.Commit()
 }
 
@@ -272,14 +261,14 @@ func TxBulkMoveAnn(tx *sql.Tx, workspace, path string, firstLine uint32, delta i
 		;`, delta, workspace, path, firstLine)
 	if err != nil {
 		return fmt.Errorf(
-			"BulkMoveAnn: could not move annotations: ws=%q, file=%q, startLine=%v, delta=%v:\n\t%v",
+			"BulkMoveAnn: could not move annotations: ws=%q, file=%q, startLine=%v, delta=%v:\n\t%w",
 			workspace, path, firstLine, delta, err)
 	}
 	return nil
 }
 
 func addConcat(tx *sql.Tx, workspace, path string, firstline, lastline uint32) (sql.Result, error) {
-	r := Must(tx.Exec(`
+	r, err := tx.Exec(`
         -- Insert the concatenation of content of all affected lines to
         -- the first line.
         -- Save the generated ID into r above.
@@ -296,17 +285,26 @@ func addConcat(tx *sql.Tx, workspace, path string, firstline, lastline uint32) (
                     AND
                   AnnotationLocations.Line <= ?          -- lastline
             ORDER BY AnnotationLocations.Line
-        ;`, "\n--\n", workspace, path, firstline, lastline))
+        ;`, "\n--\n", workspace, path, firstline, lastline)
+	if err != nil {
+		return r, fmt.Errorf("could not add concat: %w", err)
+	}
 	return r, nil
 }
 
 // TxBulkAppendAnn schedules an append in order of all the annotations on the file path between firstline
 // and lastline in the appropriate sequence.
 func TxBulkAppendAnn(tx *sql.Tx, workspace, path string, firstline, lastline uint32, delta int32) error {
-	r := Must(addConcat(tx, workspace, path, firstline, lastline))
-	annID := Must(r.LastInsertId())
+	r, err := addConcat(tx, workspace, path, firstline, lastline)
+	if err != nil {
+		fmt.Errorf("could not bulk append")
+	}
+	annID, err := r.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("could not get last insert ID: %w", err)
+	}
 
-	Must(tx.Exec(`
+	_, err = tx.Exec(`
         -- delete the notes from the deleted section.
         -- These are already replaced by the concatenation above.
         -- The annotation contents are deleted through cascade.
@@ -318,14 +316,23 @@ func TxBulkAppendAnn(tx *sql.Tx, workspace, path string, firstline, lastline uin
               AnnotationLocations.Line >= ? -- firstline
                 AND
               AnnotationLocations.Line <= ? -- lastline
-        ;`, workspace, path, firstline, lastline))
+        ;`, workspace, path, firstline, lastline)
 
-	Must(tx.Exec(`
+	if err != nil {
+		return fmt.Errorf("could not schedule exec")
+	}
+
+	_, err = tx.Exec(`
         INSERT OR REPLACE INTO AnnotationLocations(Workspace, Path, Line, AnnId)
         VALUES (?, ?, ?, ?)
-        ;`, workspace, path, firstline, annID))
+        ;`, workspace, path, firstline, annID)
+	if err != nil {
+		return fmt.Errorf("could not insert")
+	}
 
-	Must1(TxBulkMoveAnn(tx, workspace, path, lastline, delta))
+	if err := TxBulkMoveAnn(tx, workspace, path, lastline, delta); err != nil {
+		return fmt.Errorf("could not commit")
+	}
 	return nil
 }
 

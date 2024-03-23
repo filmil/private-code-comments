@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    testonly = True,
+    name = "tc",
+    srcs = ["pkg.go"],
+    importpath = "github.com/filmil/private-code-comments/tc",
+    visibility = ["//visibility:public"],
+)

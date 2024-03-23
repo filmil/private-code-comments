@@ -1,6 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
+    testonly = True,
     name = "mkdb_lib",
     srcs = ["main.go"],
     importpath = "github.com/filmil/private-code-comments/bin/mkdb",
@@ -14,6 +15,7 @@ go_library(
 )
 
 go_binary(
+    testonly = True,
     name = "mkdb",
     embed = [":mkdb_lib"],
     visibility = ["//visibility:public"],
