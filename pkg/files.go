@@ -104,5 +104,6 @@ func JSONUnmarshal[T any](r io.Reader) (T, error) {
 // MakeAllDirs makes all the directories on the path of the *file* named in
 // the parameter.
 func MakeAllDirs(filename string) error {
-	return os.MkdirAll(filename, os.ModePerm)
+    glog.Infof("making dir and parents at: %q", filename)
+    return os.MkdirAll(filename, os.ModePerm)
 }

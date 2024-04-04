@@ -51,7 +51,7 @@ func main() {
 	}
 
 	if dbFilename != pkg.DefaultFilename {
-		if err := pkg.MakeAllDirs(path.Base(dbFilename)); err != nil {
+		if err := pkg.MakeAllDirs(path.Dir(dbFilename)); err != nil {
 			glog.Fatalf("could not make directories for: %v: %v", dbFilename, err)
 		}
 	} else {
