@@ -460,6 +460,9 @@ func GetAnns(db *sql.DB, workspace, path string) ([]Ann, error) {
 			AnnotationLocations.Path = ?
 		ORDER BY	Line
 	;`, workspace, path)
+    if err != nil {
+        return nil, fmt.Errorf("GetAnns: query failed: %v", err)
+    }
 
 	for r.Next() {
 		var ann Ann
