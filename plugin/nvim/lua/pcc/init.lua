@@ -73,7 +73,7 @@ local function get(buf_info)
     local cursor_line = buf_info.cursor_line
 
     local client = find_client(parent_buf)
-    if client == nil then
+    if not client then
         return {
             err = {
                 code = 43,
@@ -100,15 +100,17 @@ local function get(buf_info)
     -- }
     --
     -- I am not a fan.
+    local timeout_ms = 5000
     local r = client.request_sync(method_get, {
         file = string.format("file://%s", parent_buf_path),
         line = cursor_line,
-    }, 100, parent_buf)
+    }, timeout_ms, parent_buf)
     if not r then
+        P(r)
         return {
             err = {
                 code = 45,
-                message = "no response received at all",
+                message = "no response received at all. Timeout?",
             }
         }
     end
