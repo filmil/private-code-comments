@@ -303,7 +303,9 @@ func (s *Server) GetHandlerFunc() jsonrpc2.Handler {
 					glog.V(1).Infof("No newline count change. Skipping update: lr=%+v, nl=%v", lr, nl)
 					continue
 				}
-				s.MoveAnnotations(ctx, lr, delta, p.TextDocument.URI)
+				if err := s.MoveAnnotations(ctx, lr, delta, p.TextDocument.URI); err != nil {
+					return fmt.Errorf("error while moving annotations: %v", err)
+				}
 			}
 
 		case lsp.MethodInitialized:
