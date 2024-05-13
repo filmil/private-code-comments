@@ -297,7 +297,7 @@ func addConcat(tx *sql.Tx, workspace, path string, firstline, lastline uint32) (
 func TxBulkAppendAnn(tx *sql.Tx, workspace, path string, firstline, lastline uint32, delta int32) error {
 	r, err := addConcat(tx, workspace, path, firstline, lastline)
 	if err != nil {
-		fmt.Errorf("could not bulk append")
+		return fmt.Errorf("could not bulk append: %w", err)
 	}
 	annID, err := r.LastInsertId()
 	if err != nil {
@@ -460,9 +460,9 @@ func GetAnns(db *sql.DB, workspace, path string) ([]Ann, error) {
 			AnnotationLocations.Path = ?
 		ORDER BY	Line
 	;`, workspace, path)
-    if err != nil {
-        return nil, fmt.Errorf("GetAnns: query failed: %v", err)
-    }
+	if err != nil {
+		return nil, fmt.Errorf("GetAnns: query failed: %v", err)
+	}
 
 	for r.Next() {
 		var ann Ann
