@@ -324,10 +324,10 @@ http_archive(
 http_archive(
     name = "neovim",
     build_file = "//third_party/neovim:BUILD.bazel.neovim",
-    integrity = "sha256-RO45XZtfihS+jsANO46tNOGP5kYeQMnIxQ5pVtZDtso=",
+    integrity = "sha256-vh8JiNDeccN1mCuHuGzSjSurNezoKFq+OwqsV2BN/Fo=",
     strip_prefix = "nvim-linux64",
     urls = [
-        "https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz",
+        "https://github.com/neovim/neovim/releases/download/v0.10.0/nvim-linux64.tar.gz",
     ],
 )
 
