@@ -17,6 +17,13 @@ jobs:
           version: 7.0.2
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Cache Bazel
+        uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: ${{ runner.os }}-bazel-${{ hashFiles('MODULE.bazel.lock', 'go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-
       - name: "Test"
         run: "bazel test --test_output=errors //..."
       - name: "Build binaries for ${{ matrix.os }}_${{ matrix.arch }}"
