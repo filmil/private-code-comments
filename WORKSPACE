@@ -1,38 +1,6 @@
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+load("@gazelle//:deps.bzl", "go_repository")
 
-http_archive(
-    name = "rules_foreign_cc",
-    sha256 = "2a4d07cd64b0719b39a7c12218a3e507672b82a97b98c6a89d38565894cf7c51",
-    strip_prefix = "rules_foreign_cc-0.9.0",
-    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.9.0.tar.gz",
-)
-
-load("@rules_foreign_cc//foreign_cc:repositories.bzl", "rules_foreign_cc_dependencies")
-
-rules_foreign_cc_dependencies()
-
-http_archive(
-    name = "io_bazel_rules_go",
-    sha256 = "a729c8ed2447c90fe140077689079ca0acfb7580ec41637f312d650ce9d93d96",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazel-contrib/rules_go/releases/download/v0.57.0/rules_go-v0.57.0.zip",
-        "https://github.com/bazel-contrib/rules_go/releases/download/v0.57.0/rules_go-v0.57.0.zip",
-    ],
-)
-
-http_archive(
-    name = "bazel_gazelle",
-    sha256 = "b7387f72efb59f876e4daae42f1d3912d0d45563eac7cb23d1de0b094ab588cf",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.34.0/bazel-gazelle-v0.34.0.tar.gz",
-        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.34.0/bazel-gazelle-v0.34.0.tar.gz",
-    ],
-)
-
-load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
-load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
+## Do not add anything into this file anymore.
 
 go_repository(
     name = "com_github_davecgh_go_spew",
@@ -67,6 +35,13 @@ go_repository(
     importpath = "github.com/mattn/go-sqlite3",
     sum = "h1:JD12Ag3oLy1zQA+BNn74xRgaBbdhbNIDYvQUEuuErjs=",
     version = "v1.14.32",
+)
+
+go_repository(
+    name = "com_github_neovim_go_client",
+    importpath = "github.com/neovim/go-client",
+    sum = "h1:kl3PgYgbnBfvaIoGYi3ojyXH0ouY6dJY/rYUCssZKqI=",
+    version = "v1.2.1",
 )
 
 go_repository(
@@ -173,78 +148,3 @@ go_repository(
     sum = "h1:aJMhYGrd5QSmlpLMr2MftRKl7t8J8PTZPA732ud/XR8=",
     version = "v1.27.0",
 )
-
-go_repository(
-    name = "com_github_neovim_go_client",
-    importpath = "github.com/neovim/go-client",
-    sum = "h1:kl3PgYgbnBfvaIoGYi3ojyXH0ouY6dJY/rYUCssZKqI=",
-    version = "v1.2.1",
-)
-
-go_rules_dependencies()
-
-go_register_toolchains(version = "1.24.0")
-
-gazelle_dependencies()
-
-http_archive(
-    name = "com_google_protobuf",
-    sha256 = "3bd7828aa5af4b13b99c191e8b1e884ebfa9ad371b0ce264605d347f135d2568",
-    strip_prefix = "protobuf-3.19.4",
-    urls = [
-        "https://github.com/protocolbuffers/protobuf/archive/v3.19.4.tar.gz",
-    ],
-)
-
-load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
-
-protobuf_deps()
-
-http_archive(
-    name = "com_github_bazelbuild_buildtools",
-    sha256 = "ae34c344514e08c23e90da0e2d6cb700fcd28e80c02e23e4d5715dddcb42f7b3",
-    strip_prefix = "buildtools-4.2.2",
-    urls = [
-        "https://github.com/bazelbuild/buildtools/archive/refs/tags/4.2.2.tar.gz",
-    ],
-)
-
-http_archive(
-    name = "neovim",
-    build_file = "//third_party/neovim:BUILD.bazel.neovim",
-    integrity = "sha256-vh8JiNDeccN1mCuHuGzSjSurNezoKFq+OwqsV2BN/Fo=",
-    strip_prefix = "nvim-linux64",
-    urls = [
-        "https://github.com/neovim/neovim/releases/download/v0.10.0/nvim-linux64.tar.gz",
-    ],
-)
-
-# gotopt2 for options processing.
-maybe(
-    git_repository,
-    name = "gotopt2",
-    commit = "184f9765881f7da793135bdd64dd99eebbfe0e42",
-    remote = "https://github.com/filmil/gotopt2",
-    shallow_since = "1697848436 -0700",
-)
-
-load("@gotopt2//build:deps.bzl", "gotopt2_dependencies")
-
-gotopt2_dependencies()
-
-# BEGIN: rules_pkg
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-http_archive(
-    name = "rules_pkg",
-    sha256 = "8f9ee2dc10c1ae514ee599a8b42ed99fa262b757058f65ad3c384289ff70c4b8",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.9.1/rules_pkg-0.9.1.tar.gz",
-        "https://github.com/bazelbuild/rules_pkg/releases/download/0.9.1/rules_pkg-0.9.1.tar.gz",
-    ],
-)
-
-load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
-
-rules_pkg_dependencies()
-# END: rules_pkg

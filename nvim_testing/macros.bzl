@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_test")
+load("@rules_go//go:def.bzl", "go_test")
 
 def nvim_go_test(name, srcs, embed, deps = [], data = [], args = [], size = "small"):
     go_test(
