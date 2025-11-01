@@ -1,4 +1,6 @@
-# Private Code Comments LSP [![Test status](https://github.com/filmil/private-code-comments/workflows/Test/badge.svg)](https://github.com/filmil/private-code-comments/workflows/Test/badge.svg) [![Tag and Release status](https://github.com/filmil/private-code-comments/workflows/Tag%20and%20Release/badge.svg)](https://github.com/filmil/private-code-comments/workflows/Tag%20and%20Release/badge.svg)
+# Private Code Comments LSP
+
+[![Test status](https://github.com/filmil/private-code-comments/workflows/Test/badge.svg)](https://github.com/filmil/private-code-comments/workflows/Test/badge.svg) [![Tag and Release status](https://github.com/filmil/private-code-comments/workflows/Tag%20and%20Release/badge.svg)](https://github.com/filmil/private-code-comments/workflows/Tag%20and%20Release/badge.svg)
 
 ## Introduction
 
