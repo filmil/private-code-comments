@@ -1,6 +1,6 @@
-load(":my_package_name.bzl", "name_part_from_command_line")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load(":my_package_name.bzl", "name_part_from_command_line")
 
 name_part_from_command_line(
     name = "name_part_from_command_line",

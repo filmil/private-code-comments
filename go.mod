@@ -1,6 +1,8 @@
 module github.com/filmil/private-code-comments
 
-go 1.20
+go 1.24.0
+
+toolchain go1.24.1
 
 require (
 	github.com/davecgh/go-spew v1.1.1

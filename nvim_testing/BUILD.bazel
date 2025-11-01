@@ -1,11 +1,11 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 load(":macros.bzl", "nvim_go_test")
 
 package(default_visibility = ["//visibility:public"])
 
 go_library(
-    testonly = True,
     name = "nvim_testing",
+    testonly = True,
     srcs = [
         "neovim.go",
         "sqlite.go",
