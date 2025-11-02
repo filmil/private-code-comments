@@ -1,4 +1,4 @@
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_attributes")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
 load(":my_package_name.bzl", "name_part_from_command_line")
 
@@ -7,12 +7,17 @@ name_part_from_command_line(
     build_setting_default = "@set_me@",
 )
 
+attr_exec = pkg_attributes(
+    mode = "0755",
+)
+
 pkg_files(
     name = "release_bin",
     srcs = [
         "//bin/pcc",
     ],
-    prefix = "lua/pcc/bin",
+    prefix = "bin",
+    attributes = attr_exec,
 )
 
 pkg_files(
@@ -30,14 +35,24 @@ pkg_files(
     prefix = "lua/pcc",
 )
 
+pkg_files(
+    name = "init_lua",
+    srcs = [
+        "//plugin/nvim:init.lua",
+    ],
+    prefix = "lua",
+)
+
+
 pkg_zip(
     name = "release",
     srcs = [
         ":release_bin",
         ":release_lua",
+        ":init_lua",
         ":release_readme",
     ],
-    package_dir = "pcc",
+    package_dir = "pcc-release",
     package_file_name = "pcc-{name_part}.zip",
     package_variables = ":name_part_from_command_line",
 )
