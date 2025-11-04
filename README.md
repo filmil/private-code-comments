@@ -52,6 +52,19 @@ pcc_plugin.setup_server_with_lsp_config(
      log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
      db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
      log_verbosity = 3,
+     filetypes = {
+         "bzl",
+         "c",
+         "cpp",
+         "gn",
+         "go",
+         "lua",
+         "markdown",
+         "python",
+         "rust",
+         "text",
+     },
+     autostart = true,
  }
 )
 require('lspconfig').pcc.setup {}
