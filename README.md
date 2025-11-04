@@ -45,32 +45,47 @@ local pcc_dir = os.getenv("HOME") .. "/.config/pcc"
 vim.opt.rtp:prepend(pcc_dir)
 local pcc_plugin = require('pcc')
 
-pcc_plugin.setup_server_with_lsp_config(
- {}, -- lspconfig settings
- {
-     pcc_binary = pcc_dir .. "/bin/pcc",
-     log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
-     db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
-     log_verbosity = 3,
-     filetypes = {
-         "bzl",
-         "c",
-         "cpp",
-         "gn",
-         "go",
-         "lua",
-         "markdown",
-         "python",
-         "rust",
-         "text",
-     },
-     autostart = true,
- }
+pcc_plugin.setup_server_with_lsp_config({},
+    {
+        pcc_binary = pcc_dir .. "/bin/pcc",
+        log_dir = os.getenv("HOME") .. '/.local/state/pcc/logs',
+        db = os.getenv("HOME") .. '/.local/state/pcc/db/db.sqlite',
+        log_verbosity = 3,
+        filetypes = {
+            "bzl",
+            "c",
+            "cpp",
+            "gn",
+            "go",
+            "lua",
+            "markdown",
+            "python",
+            "rust",
+            "text",
+        },
+        autostart = true,
+    }
 )
 require('lspconfig').pcc.setup {}
 
-vim.keymap.set({'n'}, '<leader>cr', pcc_plugin.edit, { desc = "[C]omment [R]eview" })
-vim.keymap.set({'n'}, '<leader>cd', pcc_plugin.delete, { desc = "[C]omment [D]elete" })
+vim.api.nvim_create_autocmd("LspAttach", {
+    group = vim.api.nvim_create_augroup("PrivateCodeComments", {}),
+    callback = function(ev)
+        -- Only create the key mappings when a LSP server attaches
+        -- to the buffer, and then only for the "pcc" client.
+        local clients = vim.lsp.get_clients({ name = "pcc" })
+        if clients and clients[1] then
+            vim.keymap.set(
+                {'n'}, '<leader>cr', pcc_plugin.edit, {
+                    desc = "[C]omment [R]eview"
+            })
+            vim.keymap.set(
+                {'n'}, '<leader>cd', pcc_plugin.delete, {
+                    desc = "[C]omment [D]elete"
+            })
+        end
+    end,
+})
 ```
 
 ## Usage
