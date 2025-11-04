@@ -22,7 +22,7 @@ func main() {
 	)
 
 	flag.StringVar(&dbFilename, "db", pkg.DefaultFilename, "The file name for the private comments database")
-	flag.StringVar(&dbQueryFile, "query-file", "", "The query to execute on the created database.")
+	flag.StringVar(&dbQueryFile, "query", "", "The query to execute on the created database.")
 
 	flag.Parse()
 
