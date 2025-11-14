@@ -11,7 +11,6 @@ go_library(
         "@com_github_mattn_go_sqlite3//:go-sqlite3",
         "@dev_lsp_go_jsonrpc2//:jsonrpc2",
     ],
-    cgo = True,
 )
 
 go_binary(
@@ -25,5 +24,6 @@ go_binary(
         "main.Version":   "{STABLE_VERSION}",
         "main.Date":   "{FORMATTED_DATE}",
     },
+    cgo = True,
 )
 
