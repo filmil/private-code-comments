@@ -92,17 +92,10 @@ jobs:
         run: "bazel test --test_output=errors //..."
       - name: "Build binaries for ${{ matrix.os }}_${{ matrix.arch }}"
         run: |
-          bazel build \
+          VERSION=${{ needs.tag.outputs.tag_name }} bazel build \
             --platforms=@rules_go//go/toolchain:${{ matrix.os }}_${{ matrix.arch}} \
             --//build:name_part_from_command_line=${{ matrix.os }}-${{ matrix.arch }} \
             //build:release
-      - name: Find version tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.2
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          release_branches: main
-          dry_run: true
       - name: "Publish ${{ matrix.os }}_${{ matrix.arch }}"
         uses: ncipollo/release-action@v1
         env:
@@ -110,5 +103,5 @@ jobs:
         with:
           allowUpdates: true
           artifacts: "${{ env.BINARY_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.zip"
-          tag: ${{ steps.tag_version.outputs.previous_tag }}
+          tag: ${{ needs.tag.outputs.tag_name }}
 

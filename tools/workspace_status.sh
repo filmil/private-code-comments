@@ -17,5 +17,9 @@ echo "STABLE_GIT_SHORT_COMMIT $(git rev-parse --short HEAD)"
 echo "STABLE_GIT_BRANCH $(git rev-parse --abbrev-ref HEAD)"
 
 # The version (tag, or branch/commit if no tag)
-echo "STABLE_VERSION $(git describe --always --tags --dirty)"
+if [ -n "${VERSION-}" ]; then
+  echo "STABLE_VERSION ${VERSION}"
+else
+  echo "STABLE_VERSION $(git describe --always --tags --dirty)"
+fi
 
