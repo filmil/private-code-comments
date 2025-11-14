@@ -94,7 +94,7 @@ jobs:
         run: |
           VERSION=${{ needs.tag.outputs.tag_name }} bazel build \
             --platforms=@rules_go//go/toolchain:${{ matrix.os }}_${{ matrix.arch}} \
-            --//build:name_part_from_command_line=${{ matrix.os }}-${{ matrix.arch }} \
+            --//build:name_part_from_command_line=${{ needs.tag.outputs.tag_name }}-${{ matrix.os }}-${{ matrix.arch }} \
             //build:release
       - name: "Publish ${{ matrix.os }}_${{ matrix.arch }}"
         uses: ncipollo/release-action@v1
