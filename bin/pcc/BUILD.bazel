@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "pcc_lib",
-    srcs = ["main.go"],
+    srcs = ["main.go", "version.go"],
     importpath = "github.com/filmil/private-code-comments/bin/pcc",
     visibility = ["//visibility:private"],
     deps = [
@@ -18,4 +18,12 @@ go_binary(
     name = "pcc",
     embed = [":pcc_lib"],
     visibility = ["//visibility:public"],
+    # Stamp is created using //tools/workspace_status.sh
+    x_defs = {
+        "main.GitCommit": "{STABLE_GIT_SHORT_COMMIT}",
+        "main.GitBranch": "{STABLE_GIT_BRANCH}",
+        "main.Version":   "{STABLE_VERSION}",
+        "main.Date":   "{FORMATTED_DATE}",
+    },
 )
+

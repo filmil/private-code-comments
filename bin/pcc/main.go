@@ -32,6 +32,7 @@ func main() {
 		dbFilename string
 		// The communication socket filename.
 		socketFile string
+		version    bool
 	)
 
 	// Set up flags
@@ -40,7 +41,13 @@ func main() {
 	flag.StringVar(&socketFile,
 		"socket-file", pkg.DefaultSocket,
 		"The socket to use for communication")
+	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.Parse()
+
+	if version {
+		fmt.Printf("%v\n", getVersion())
+		os.Exit(0)
+	}
 
 	// Allow net.Listen to create the comms socket - remove it if it exists.
 	if err := os.Remove(socketFile); err != nil {
