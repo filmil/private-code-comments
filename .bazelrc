@@ -5,3 +5,9 @@ try-import %workspace%/user.bazelrc
 #
 test --test_output=errors
 test --test_summary=terse
+
+# Enable the stamping feature and specify the status script path
+# Use a separate config for CI/release builds where stamping is desired.
+build --stamp
+build --workspace_status_command=tools/workspace_status.sh
+
