@@ -16,6 +16,7 @@ go_library(
         "@dev_lsp_go_jsonrpc2//:jsonrpc2",
         "@dev_lsp_go_protocol//:protocol",
     ],
+    cgo = True,
 )
 
 go_test(
