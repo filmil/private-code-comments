@@ -93,7 +93,7 @@ jobs:
       - name: "Build binaries for ${{ matrix.os }}_${{ matrix.arch }}"
         run: |
           VERSION=${{ needs.tag.outputs.tag_name }} bazel build \
-            --platforms=@rules_go//go/toolchain:${{ matrix.os }}_${{ matrix.arch}} \
+            --platforms=@rules_go//go/toolchain:${{ matrix.os }}_${{ matrix.arch}}_cgo \
             --//build:name_part_from_command_line=${{ needs.tag.outputs.tag_name }}-${{ matrix.os }}-${{ matrix.arch }} \
             //build:release
       - name: "Publish ${{ matrix.os }}_${{ matrix.arch }}"
