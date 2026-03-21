@@ -22,3 +22,5 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
 )
+
+replace go.lsp.dev/jsonrpc2 => github.com/filmil/jsonrpc2 v0.0.0-20260321010252-15069359ae9d
