@@ -16,6 +16,15 @@ on:
   schedule:
     - cron: '0 0 * * 0'
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: >-
+          Release even when no commit asks for a version bump. Use this when a
+          change landed with a commit message that conventional-commit parsing
+          does not recognise, so the tree is ahead of the last tag but nothing
+          triggers a bump.
+        type: boolean
+        default: false
 
 jobs:
   tag:
@@ -46,7 +55,13 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           release_branches: main
-          default_bump: false
+          # Normally `false`, so the action emits an empty `new_tag` when no
+          # commit asks for a release and the guards below skip everything.
+          # The Run workflow button can override that with `force_release`,
+          # which bumps the patch version regardless. That is the escape hatch
+          # for a commit whose message conventional-commit parsing does not
+          # recognise: the code is on main, but nothing asks for a version.
+          default_bump: ${{ inputs.force_release && 'patch' || 'false' }}
       - name: Create a GitHub release
         if: steps.tag_version.outputs.new_tag != ''
         uses: ncipollo/release-action@v1
